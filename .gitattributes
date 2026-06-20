@@ -1,0 +1,16 @@
+# Normalise tous les fichiers texte en LF dans le dépôt et fait taire les
+# avertissements « LF will be replaced by CRLF » de Git sous Windows.
+* text=auto eol=lf
+
+# Types texte explicites (fins de ligne LF dans le dépôt comme à l'extraction)
+*.gs        text eol=lf
+*.js        text eol=lf
+*.md        text eol=lf
+*.txt       text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# Fichiers binaires : jamais de conversion de fins de ligne ni de diff texte
+*.xlsx binary
+*.pdf  binary
+*.png  binary
