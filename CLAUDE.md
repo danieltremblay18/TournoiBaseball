@@ -1,0 +1,62 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+A single Google Apps Script file (`TournoiBaseball_Script.gs`) that turns a Google Sheet into a full tournament management system for a 13U baseball tournament (Baseball Québec). There is no build system, package manager, or test framework — this is a `.gs` file meant to be pasted whole into the Apps Script editor bound to a Google Sheet.
+
+Supporting files (not code, read for domain context when relevant):
+- `Regles13U_2026.md` / `ReglesRegie2026.pdf` — official Baseball Québec rules (field dimensions, game length, mercy rule, extra innings, **Art. 42.11 tiebreaker procedure**). The tiebreaker logic in the script is a direct implementation of Art. 42.11.
+- `Horaire-tournoi-2026.xlsx` — the official schedule file provided yearly by Baseball Québec. Its `Horaire globalArbitre` tab defines the exact column format that gets pasted into the "Configuration" sheet (`# de match`, `# pool`, `Jour`, `Heure`, `Terrain`, `Équipe 1`, `Équipe 2`, plus referee/scorekeeper columns that the script ignores).
+- `Équipes.txt` — scratch notes, not authoritative.
+
+## Working with the code
+
+There is no build/lint/test command. The only practical verification available offline is a syntax check:
+
+```bash
+cp TournoiBaseball_Script.gs /tmp/check.js && node --check /tmp/check.js
+```
+
+This catches JS syntax errors only — it does not validate Apps Script globals (`SpreadsheetApp`, `Logger`, etc.), since `node --check` parses without executing. There is no way to actually run the script outside the Apps Script runtime; real verification happens by pasting into a bound script and exercising the custom menu.
+
+There is also an offline test of the tiebreaker logic (Art. 42.11), which is the most intricate and fragile part of the file:
+
+```bash
+node tests/test_tiebreaker.js
+```
+
+It `eval`s the real functions out of `TournoiBaseball_Script.gs` (the pure standings functions that never touch `SpreadsheetApp`) and runs them on a hand-built 3-way circular-tie scenario, asserting that a score change which leaves the V-D records identical still flips the pool order via the RA/DefInn ratio (Priority 2). It exits non-zero on failure. Like `node --check`, this only covers pure logic — it does NOT exercise the Apps Script integration (sheet I/O, the live-recalc trigger `handleResultEdit`); that still requires pasting into a bound sheet and editing a score.
+
+**Deploying a change:** paste the entire file into Extensions > Apps Script > Code.gs in the target Google Sheet, save, reload the spreadsheet, then run "Initialiser les feuilles" from the "🏆 Tournoi Baseball" menu to rebuild sheet structure (this clears and regenerates every sheet — it does not preserve scores already entered in Résultats). **Also run "⚡ Activer la mise à jour auto" once after each code paste** — the live-recalc trigger is an *installable* trigger (`handleResultEdit`), not a simple one, so it must be (re)registered by the owner via `installTriggers()`; pasting code alone does not arm it.
+
+## Architecture
+
+The script is organized as sections (search for `// ====` banners) in this order: constants → menu → sheet creation → match generation → data reading → inning-fraction math → standings calculation → standings sheet rendering → clear results → simulation → utilities. The data flow across these sections is the key thing to understand before editing:
+
+```
+Configuration (pasted schedule)
+   → readScheduleRows() / parsePoolClasse()   [parses "# pool" like "3A" into {pool:3, classe:'A'}]
+   → generateGames()                          [routes each match into Résultats A or B]
+   → Résultats A / Résultats B                [registrar fills in scores + Équipe Locale]
+   → getGameResults() + calculateInnings()    [computes winner + fractional innings]
+   → calculateStandings() → buildStandingsSheet()  [pool standings, Étape B/C, semifinals]
+```
+
+**Configuration is a pasted schedule, not a roster.** It mirrors the exact column layout of the `Horaire globalArbitre` tab from the official Excel file (`createConfigSheet`). There's no per-team input UI — the registrar copy-pastes the year's real schedule starting at A2 every year, and everything else regenerates from it. `getTeams(classe)` derives the team roster per pool by scanning this schedule (teams are no longer declared anywhere separately).
+
+**Home team is unknown at generation time and is a separate concept from "Équipe 1"/"Équipe 2".** The schedule only pairs two teams; nobody knows who's the home team until the game is actually played. `generateGames()` writes "Équipe 1"/"Équipe 2" (just the matchup, no home/away meaning) plus an empty "Équipe Locale" column with a per-row dropdown (only the 2 teams in that match). The registrar sets it when entering the score. `getGameResults()` resolves it: if "Équipe Locale" matches Équipe 1 or 2 it's used directly (`homeKnown = true`); if blank, the code falls back to a symmetric (no walk-off advantage) inning calculation and logs a warning (`homeKnown = false`) — this only matters for games that ended early (walk-off/mercy), since a full 6-inning game is symmetric regardless of who's home.
+
+**Inning fractions are the trickiest math in the file** (`calculateInnings`). Tiebreaker ratios (RA/DefInn, RS/OffInn) need the *real* number of innings each side played, not just the inning count of the game. A walk-off win means the home team's last at-bat and the visiting team's last half-inning in the field were both cut short — that fraction is `outs_recorded / 3`. This is also explained to end users via column header notes (`setNote()` on header cells in `createResultsSheet`) and the auto-generated "Aide" sheet (`createHelpSheet`) — if you change the math, update both, since they're meant to be self-contained (no cross-referencing required while a registrar is entering scores).
+
+**Tiebreaker resolution is recursive and three-tiered**, mirroring Art. 42.11 exactly:
+- Step A (`useAllGames=false`): rank within a pool using head-to-head games only among tied teams.
+- Steps B/C (`useAllGames=true`): rank pool winners (Étape C, positions 1-3) and pool runners-up (Étape B, position 4 / best 2nd) using each team's full set of pool games, since they never played each other directly.
+- `tiebreaker()` applies priorities in order (head-to-head record → RA/DefInn ratio → RS/OffInn ratio → "innings ahead", which isn't automated and is flagged with `__needsManualCheck` for the registrar to resolve via the `Manches_Détail` sheet) and recurses on any subgroup still tied after a priority is applied (`resolveGroups`).
+
+**Result sheet columns are positional, not named lookups** — every function that reads/writes `Résultats A/B` (`createResultsSheet`, `generateGames`, `getGameResults`, `writeCalculatedResults` / `writeRowCalc`, `clearResults`, `simulateMatchResults`, `handleResultEdit`) hardcodes column numbers (currently 18 columns: A-G auto-copied from Configuration, H-M manual entry, N-R calculated). There's no named-range or header-lookup abstraction, so changing the column layout means updating every one of those functions' column indices in lockstep — there is no single source of truth for "column J is Équipe Locale" beyond the header string itself. `writeRowCalc(sheet, rowIndex, game)` is the one place that writes the N-R calculated block for a single row; both `writeCalculatedResults` (full-sheet loop) and `handleResultEdit` (targeted single-row) go through it.
+
+**Standings recalc runs both on-demand (menu) and live (installable edit trigger).** The menu item "Mettre à jour les classements" → `calculateStandings()` is the authoritative full refresh (rewrites all N-R + rebuilds both standings sheets). On top of that, `handleResultEdit(e)` recalculates live during a real tournament where 2-3 registrars enter scores in parallel while others watch the `Classements` tabs. **It is wired as an *installable* edit trigger, deliberately NOT named `onEdit`:** a simple `onEdit` trigger runs in a restricted auth mode where `LockService` can fail (which would break the multi-user lock), so `installTriggers()` (menu "⚡ Activer la mise à jour auto") registers it instead — it then runs with the owner's authorization while still firing for every collaborator's edits. The owner must run this once after each code paste; pasting code alone does not arm it. The handler is deliberately conservative: it only fires when an edit lands in the manual-entry columns (H-M) of a `Résultats` sheet **and** `isRowComplete()` says the game's row is fully filled — all of H-M for a normal game (Manches K is required, not defaulted, because rain can shorten a "normal" game to e.g. 5 innings), or just the two scores + Type for a `Forfait`. `isRowComplete` tests *emptiness* (`x !== ''`), never falsiness, so a score/outs value of `0` counts as filled. The whole recalc is wrapped in `LockService.getDocumentLock()` (document lock, **not** user lock — the contention is between different users) acquired defensively (if `LockService` is unavailable it recalcs without the lock rather than throwing) so two stations can never rebuild a `Classements` sheet concurrently and show a half-built standings to watchers. The handler writes only the edited row's N-R (via `writeRowCalc`) plus the `Classements` sheet — never the whole `Résultats` sheet, to avoid disturbing another station's typing. Known gap (covered by the menu fallback): a *bulk* clear of cells won't auto-recalc; only a single-cell score clear (detected via `e.oldValue`) is caught. `buildStandingsSheet` recomputes purely from the in-memory `games` array and never reads the N-R columns, which is what makes the targeted/standings-only path correct.
+
+**`simulateMatchResults`** (menu: "🧪 Simuler résultats de match") injects canned scores covering every code path (Normal/Mercy/Forfait/extra-innings/walk-off, plus deliberately tied scenarios at each tiebreaker priority level) onto whatever schedule is *already* generated in Résultats A/B — it does not touch Configuration or invent a fake schedule. It refuses to run (shows an alert) if Résultats A/B haven't been populated yet via "Générer les matchs". The canned `DATA` arrays are positional (1st game of pool 1, 2nd game of pool 1, ...) and intentionally agnostic to actual team names, so they keep working regardless of what real teams are in Configuration.

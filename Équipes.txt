@@ -1,0 +1,36 @@
+1A	Braves Témiscouata	Kamouraska
+1A	Patriotes 2 Noroît	Blue Jays Saguenay
+1A	Kamouraska	Patriotes 2 Noroît
+1A	Patriotes 2 Noroît	Braves Témiscouata
+1A	Kamouraska	Blue Jays Saguenay
+1A	Blue Jays Saguenay	Braves Témiscouata
+1B	Mariniers Rivière-du-Loup	Kamouraska 2
+1B	Titans 4 Chaudière-Ouest	Cardinals Beauport
+1B	Mariniers Rivière-du-Loup	Titans 4 Chaudière-Ouest
+1B	Cardinals Beauport	Kamouraska 2
+1B	Cardinals Beauport	Mariniers Rivière-du-Loup
+1B	Kamouraska 2	Titans 4 Chaudière-Ouest
+2A	Edmundston NB	Ambassadeurs 2 Lévis
+2A	Cascades Beauport	Expos 1 Lanaudière
+2A	Edmundston NB	Cascades Beauport
+2A	Expos 1 Lanaudière	Ambassadeurs 2 Lévis
+2A	Expos 1 Lanaudière	Edmundston NB
+2A	Ambassadeurs 2 Lévis	Cascades Beauport
+2B	Braves Témiscouata	Cardinals 2 Beauce-Centre
+2B	Bombardiers VBAL	Seigneurs 1 Repentigny
+2B	Seigneurs 1 Repentigny	Cardinals 2 Beauce-Centre
+2B	Braves Témiscouata	Bombardiers VBAL
+2B	Braves Témiscouata	Seigneurs 1 Repentigny
+2B	Bombardiers VBAL	Cardinals 2 Beauce-Centre
+3A	Héritiers Trois-Pistoles	Élans bleu Rimouski
+3A	Titans 2 Chaudière-Ouest	Riverains 2 Haute-St-Charles
+3A	Élans bleu Rimouski	Titans 2 Chaudière-Ouest
+3A	Héritiers Trois-Pistoles	Riverains 2 Haute-St-Charles
+3A	Titans 2 Chaudière-Ouest	Héritiers Trois-Pistoles
+3A	Riverains 2 Haute-St-Charles	Élans bleu Rimouski
+3B	Élans rouge Rimouski	Kamouraska 1
+3B	Ambassadeurs 1 Lévis	Cardinals 1 Beauce-Centre
+3B	Ambassadeurs 1 Lévis	Élans rouge Rimouski
+3B	Kamouraska 1	Cardinals 1 Beauce-Centre
+3B	Ambassadeurs 1 Lévis	Kamouraska 1
+3B	Élans rouge Rimouski	Cardinals 1 Beauce-Centre

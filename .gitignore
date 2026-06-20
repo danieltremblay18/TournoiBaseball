@@ -1,0 +1,6 @@
+# Fichiers temporaires Office (verrous ~$)
+~$*
+
+# Divers OS / éditeurs
+.DS_Store
+Thumbs.db
