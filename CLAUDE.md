@@ -31,6 +31,8 @@ It `eval`s the real functions out of `TournoiBaseball_Script.gs` (the pure stand
 
 **Deploying a change:** paste the entire file into Extensions > Apps Script > Code.gs in the target Google Sheet, save, reload the spreadsheet, then run "Initialiser les feuilles" from the "🏆 Tournoi Baseball" menu to rebuild sheet structure (this clears and regenerates every sheet — it does not preserve scores already entered in Résultats). **Also run "⚡ Activer la mise à jour auto" once after each code paste** — the live-recalc trigger is an *installable* trigger (`handleResultEdit`), not a simple one, so it must be (re)registered by the owner via `installTriggers()`; pasting code alone does not arm it.
 
+**Git workflow:** commit changes, but **do NOT `git push`** — the maintainer handles all pushes themselves. Stop after `git commit`.
+
 ## Architecture
 
 The script is organized as sections (search for `// ====` banners) in this order: constants → menu → sheet creation → match generation → data reading → inning-fraction math → standings calculation → standings sheet rendering → clear results → simulation → utilities. The data flow across these sections is the key thing to understand before editing:
