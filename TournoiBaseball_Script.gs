@@ -336,8 +336,8 @@ function createResultsSheet(ss, classe) {
   var headers = [
     'Pool', 'Partie #', 'Jour', 'Heure', 'Terrain', 'Équipe 1', 'Équipe 2',
     'Score Équipe 1', 'Score Équipe 2', 'Équipe Locale', 'Manches complètes',
-    'Retraits en fin', 'Type de fin', 'Gagnant', 'Off Inn Éq.1', 'Def Inn Éq.1',
-    'Off Inn Éq.2', 'Def Inn Éq.2'
+    'Retraits en fin', 'Type de fin', 'Gagnant', 'MO Éq.1', 'MD Éq.1',
+    'MO Éq.2', 'MD Éq.2'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   styleHeader(sheet.getRange(1, 1, 1, headers.length));
@@ -384,20 +384,20 @@ function createResultsSheet(ss, classe) {
         'automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant.',
     14: 'GAGNANT — Calculé automatiquement à partir des scores (colonnes H et I). Ne ' +
         'pas modifier à la main, recalculé par "Mettre à jour les classements".',
-    15: 'OFF INN ÉQ.1 — Manches OFFENSIVES (à la batte) jouées par l\'Équipe 1, calculé ' +
-        'automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 est la ' +
-        'locale et gagne par walk-off : sa dernière manche au bâton est alors comptée en ' +
-        'fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle n\'a pas eu besoin de la ' +
+    15: 'MO ÉQ.1 (Manches Offensives, Équipe 1) — Manches à la batte jouées par l\'Équipe ' +
+        '1, calculé automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 ' +
+        'est la locale et gagne par walk-off : sa dernière manche au bâton est alors comptée ' +
+        'en fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle n\'a pas eu besoin de la ' +
         'terminer.',
-    16: 'DEF INN ÉQ.1 — Manches DÉFENSIVES (au champ) jouées par l\'Équipe 1, calculé ' +
-        'automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 est la ' +
-        'visiteuse et perd par walk-off : sa dernière manche en défense est alors ' +
+    16: 'MD ÉQ.1 (Manches Défensives, Équipe 1) — Manches au champ jouées par l\'Équipe 1, ' +
+        'calculé automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 est ' +
+        'la visiteuse et perd par walk-off : sa dernière manche en défense est alors ' +
         'comptée en fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle n\'a pas eu le ' +
         'temps de la terminer.',
-    17: 'OFF INN ÉQ.2 — Manches OFFENSIVES de l\'Équipe 2, calculé automatiquement. ' +
-        'Même logique que la colonne O (Off Inn Éq.1), appliquée à l\'Équipe 2.',
-    18: 'DEF INN ÉQ.2 — Manches DÉFENSIVES de l\'Équipe 2, calculé automatiquement. ' +
-        'Même logique que la colonne P (Def Inn Éq.1), appliquée à l\'Équipe 2.'
+    17: 'MO ÉQ.2 (Manches Offensives, Équipe 2) — Manches à la batte de l\'Équipe 2, calculé ' +
+        'automatiquement. Même logique que la colonne O (MO Éq.1), appliquée à l\'Équipe 2.',
+    18: 'MD ÉQ.2 (Manches Défensives, Équipe 2) — Manches au champ de l\'Équipe 2, calculé ' +
+        'automatiquement. Même logique que la colonne P (MD Éq.1), appliquée à l\'Équipe 2.'
   };
   Object.keys(notes).forEach(function (col) {
     sheet.getRange(1, Number(col)).setNote(notes[col]);
@@ -574,22 +574,24 @@ function createHelpSheet(ss) {
   addColumnDoc('N — Gagnant (calculé)',
     'Nom de l\'équipe gagnante, déterminé automatiquement à partir des scores (colonnes ' +
     'H et I). Ne pas modifier à la main — recalculé par "Mettre à jour les classements".');
-  addColumnDoc('O / P — Off Inn Éq.1 / Def Inn Éq.1 (calculé)',
-    'Nombre de manches OFFENSIVES (à la batte) et DÉFENSIVES (au champ) jouées par ' +
+  addColumnDoc('O / P — MO Éq.1 / MD Éq.1 (calculé)',
+    'MO = Manches OFFENSIVES (à la batte) ; MD = Manches DÉFENSIVES (au champ) jouées par ' +
     'l\'Équipe 1, en fractions de tiers si la partie s\'est terminée par un walk-off ou ' +
     'un Mercy en milieu de manche. Voir la section "Fractions de manches" ci-dessous. ' +
     'Calculé automatiquement.');
-  addColumnDoc('Q / R — Off Inn Éq.2 / Def Inn Éq.2 (calculé)',
-    'Même chose que O / P, mais pour l\'Équipe 2.');
+  addColumnDoc('Q / R — MO Éq.2 / MD Éq.2 (calculé)',
+    'Même chose que O / P (MO/MD), mais pour l\'Équipe 2.');
 
   addBlank();
   addTitle('POURQUOI DES FRACTIONS DE MANCHES (⅓, ⅔) ?', COLOR_SECTION);
   addText(
     'Le classement utilise deux ratios pour départager les égalités (Art. 42.11 ' +
-    'Baseball Québec) : Points alloués / Manches défensives (le plus bas est le ' +
-    'meilleur), et Points marqués / Manches offensives (le plus haut est le meilleur). ' +
-    'Pour que ces ratios soient justes, il faut compter le nombre RÉEL de manches jouées ' +
-    'par chaque équipe — pas seulement le nombre de manches de la partie.');
+    'Baseball Québec) : le ratio défensif RD = PC / MD (points contre / manches ' +
+    'défensives, le plus bas est le meilleur), et le ratio offensif RO = PP / MO (points ' +
+    'pour / manches offensives, le plus haut est le meilleur). Ces abréviations (RD, RO, ' +
+    'MO, MD, PP, PC) sont celles des colonnes des feuilles Classements. Pour que ces ratios ' +
+    'soient justes, il faut compter le nombre RÉEL de manches jouées par chaque équipe — ' +
+    'pas seulement le nombre de manches de la partie.');
   addText(
     'Quand la partie se termine par un point gagnant frappé par l\'équipe locale dans le ' +
     'bas d\'une manche (avant ses 3 retraits — une victoire "walk-off"), deux ' +
@@ -1443,6 +1445,56 @@ function buildStandingsSheet(ss, classe, games) {
   sheet.setFrozenRows(1);
 }
 
+// Info-bulles (survol de l'en-tête) des feuilles Classements — comme dans les
+// feuilles Résultats, le texte est autonome pour qu'un responsable comprenne
+// chaque abréviation sans aller voir l'onglet Aide. Clés = numéro de colonne.
+var POOL_HEADER_NOTES = {
+  1:  'RANG — Position de l\'équipe dans son pool, après application des bris d\'égalité ' +
+      '(Art. 42.11). 1er et 2e sont surlignés.',
+  3:  'PJ — Parties Jouées dans le pool.',
+  4:  'V — Victoires.',
+  5:  'D — Défaites.',
+  6:  'PP — Points POUR : total des points marqués par l\'équipe dans le pool.',
+  7:  'PC — Points CONTRE : total des points alloués (encaissés) par l\'équipe dans le pool.',
+  8:  'MO — Manches OFFENSIVES jouées (à la batte), en fractions de tiers (⅓/⅔) si la partie ' +
+      's\'est terminée hâtivement (walk-off / mercy). Dénominateur du ratio offensif RO.',
+  9:  'MD — Manches DÉFENSIVES jouées (au champ), en fractions de tiers (⅓/⅔) si fin hâtive. ' +
+      'Dénominateur du ratio défensif RD.',
+  10: 'RD — Ratio DÉFENSIF = PC / MD (points contre par manche défensive). Le plus BAS est le ' +
+      'meilleur. 2e critère de bris d\'égalité (Art. 42.11), après la fiche tête-à-tête.',
+  11: 'RO — Ratio OFFENSIF = PP / MO (points pour par manche offensive). Le plus HAUT est le ' +
+      'meilleur. 3e critère de bris d\'égalité (Art. 42.11).',
+  12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).'
+};
+
+var ADV_HEADER_NOTES = {
+  1:  'POSITION — Rang inter-pool. Étape C : positions 1-2-3 (les 1ers de pool). ' +
+      'Étape B : meilleur 2e = position 4.',
+  3:  'POOL — Pool d\'origine de l\'équipe.',
+  4:  'V — Victoires (sur TOUTES les parties de pool de l\'équipe).',
+  5:  'D — Défaites (sur toutes les parties de pool).',
+  6:  'RD — Ratio DÉFENSIF = PC / MD (le plus BAS est le meilleur). Calculé sur toutes les ' +
+      'parties de pool (forfaits exclus des ratios).',
+  7:  'RO — Ratio OFFENSIF = PP / MO (le plus HAUT est le meilleur). Calculé sur toutes les ' +
+      'parties de pool (forfaits exclus des ratios).',
+  8:  'PP — Points POUR (sur toutes les parties de pool).',
+  9:  'PC — Points CONTRE (sur toutes les parties de pool).',
+  10: 'NOTE — Avertissement si une vérification manuelle est requise (Priorité 4 « manches ' +
+      'en avance » non automatisée — voir la feuille Manches_Détail).'
+};
+
+/**
+ * Applique des info-bulles (setNote) aux cellules d'en-tête d'une ligne donnée.
+ * @param {Sheet}  sheet
+ * @param {number} headerRow   numéro de ligne de l'en-tête
+ * @param {Object} notesByCol  { numéroColonne: texte }
+ */
+function applyHeaderNotes(sheet, headerRow, notesByCol) {
+  Object.keys(notesByCol).forEach(function (col) {
+    sheet.getRange(headerRow, parseInt(col, 10)).setNote(notesByCol[col]);
+  });
+}
+
 /**
  * Écrit une section de classement de pool. Retourne la prochaine ligne libre.
  */
@@ -1457,11 +1509,12 @@ function writePoolSection(sheet, startRow, classe, pool, standings) {
   row++;
 
   // En-têtes (13 colonnes).
-  var headers = ['Rang', 'Équipe', 'PJ', 'V', 'D', 'Pts marqués',
-                 'Pts alloués', 'Off Inn', 'Def Inn',
-                 'Ratio PA/Def Inn', 'Ratio PM/Off Inn', 'Avancement', ''];
+  var headers = ['Rang', 'Équipe', 'PJ', 'V', 'D', 'PP',
+                 'PC', 'MO', 'MD',
+                 'RD', 'RO', 'Avancement', ''];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers]);
   styleHeader(sheet.getRange(row, 1, 1, headers.length));
+  applyHeaderNotes(sheet, row, POOL_HEADER_NOTES);
   row++;
 
   // Lignes d'équipes.
@@ -1507,10 +1560,11 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
 
   // En-têtes.
   var headers = ['Position', 'Équipe', 'Pool', 'V', 'D',
-                 'Ratio RA/DefInn', 'Ratio RS/OffInn', 'Pts marqués',
-                 'Pts alloués', 'Note', ''];
+                 'RD', 'RO', 'PP',
+                 'PC', 'Note', ''];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers]);
   styleHeader(sheet.getRange(row, 1, 1, headers.length));
+  applyHeaderNotes(sheet, row, ADV_HEADER_NOTES);
   row++;
 
   // Map team -> pool d'origine.
