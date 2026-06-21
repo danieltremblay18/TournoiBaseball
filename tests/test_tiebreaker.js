@@ -149,8 +149,21 @@ rowChecks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test de gameIsSupp (drapeau Note 4 / manches supplémentaires) ----------
+var suppChecks = [
+  ['Type Supplémentaires détecté', gameIsSupp({ type: 'Supplémentaires' }) === true],
+  ['Type Normal non détecté',      gameIsSupp({ type: 'Normal' }) === false],
+  ['Objet vide non détecté',       gameIsSupp({}) === false]
+];
+
+console.log('\n--- Vérifications : gameIsSupp (Note 4) ---');
+suppChecks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);
 }
-console.log('\nSUCCÈS : bris d\'égalité (Priorité 2) + isRowComplete OK.');
+console.log('\nSUCCÈS : bris d\'égalité (Priorité 2) + isRowComplete + gameIsSupp OK.');

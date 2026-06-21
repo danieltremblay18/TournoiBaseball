@@ -381,7 +381,12 @@ function createResultsSheet(ss, classe) {
     13: 'TYPE DE FIN — "Normal" = partie jouée jusqu\'au bout. "Mercy" = arrêtée avant ' +
         'la fin (règle de l\'écart de points). "Forfait" = une équipe ne se présente pas ' +
         'ou abandonne ; le score n\'indique alors que le gagnant, et les manches sont ' +
-        'automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant.',
+        'automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant. ' +
+        '"Supplémentaires" = partie prolongée au-delà des manches réglementaires. IMPORTANT ' +
+        '(Note 4, Art. 42.11) : les points marqués/alloués en manches supplémentaires doivent ' +
+        'être EXCLUS du ratio de bris d\'égalité. Le système ne le fait pas automatiquement : ' +
+        'il signale ces parties par un ⚠ dans les Classements pour que le ratio (RD/RO) soit ' +
+        'vérifié/ajusté à la main via la feuille Manches_Détail.',
     14: 'GAGNANT — Calculé automatiquement à partir des scores (colonnes H et I). Ne ' +
         'pas modifier à la main, recalculé par "Mettre à jour les classements".',
     15: 'MO ÉQ.1 (Manches Offensives, Équipe 1) — Manches à la batte jouées par l\'Équipe ' +
@@ -417,7 +422,7 @@ function createResultsSheet(ss, classe) {
 
   // Validation pour "Type de fin" (col M = 13).
   var typeRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Normal', 'Mercy', 'Forfait'], true)
+    .requireValueInList(['Normal', 'Mercy', 'Forfait', 'Supplémentaires'], true)
     .setAllowInvalid(false)
     .build();
   sheet.getRange(2, 13, nRows, 1).setDataValidation(typeRule);
@@ -482,9 +487,14 @@ function createInningDetailSheet(ss) {
   sheet.getRange(2, 6, nRows, TOTAL_INNINGS * 2).setBackground(COLOR_INPUT);
 
   sheet.getRange(2, 1).setNote(
-    'Feuille optionnelle. À remplir SEULEMENT si un bris d\'égalité atteint la ' +
-    'Priorité 4 (manches en avance). Saisir le score cumulatif (ou par manche) ' +
-    'de chaque équipe afin de compter les manches complètes où elle menait.');
+    'Feuille optionnelle, pour les vérifications MANUELLES de bris d\'égalité. ' +
+    'Deux usages :\n' +
+    '1) Priorité 4 (manches en avance) : saisir le score cumulatif (ou par manche) de ' +
+    'chaque équipe afin de compter les manches complètes où elle menait.\n' +
+    '2) Note 4 (Art. 42.11) — parties allées en manches SUPPLÉMENTAIRES : le ratio (RD/RO) ' +
+    'affiché dans les Classements inclut à tort les points des supplémentaires. Recalculer ' +
+    'ici le ratio en ne comptant QUE les points des manches régulières (les supplémentaires ' +
+    'sont exclues).');
 }
 
 /**
@@ -570,7 +580,9 @@ function createHelpSheet(ss) {
     '"Normal" = partie jouée selon les règles standards jusqu\'au bout. "Mercy" = partie ' +
     'arrêtée avant la fin en raison de la règle de l\'écart de points. "Forfait" = une ' +
     'équipe ne se présente pas ou abandonne ; le score n\'indique alors que qui gagne, et ' +
-    'les manches sont automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant.');
+    'les manches sont automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant. ' +
+    '"Supplémentaires" = partie prolongée au-delà des manches réglementaires (voir la ' +
+    'section "Manches supplémentaires et Note 4" plus bas).');
   addColumnDoc('N — Gagnant (calculé)',
     'Nom de l\'équipe gagnante, déterminé automatiquement à partir des scores (colonnes ' +
     'H et I). Ne pas modifier à la main — recalculé par "Mettre à jour les classements".');
@@ -631,6 +643,23 @@ function createHelpSheet(ss) {
     'moment (manche complète, ou victoire de la visiteuse), il n\'y a pas de fraction : ' +
     'l\'équipe gagnante reçoit simplement 6 manches en défense (le maximum ' +
     'réglementaire), comme si la partie avait été jouée au complet.');
+
+  addBlank();
+  addTitle('MANCHES SUPPLÉMENTAIRES ET NOTE 4 (Art. 42.11)', COLOR_SECTION);
+  addText(
+    'Quand une partie se prolonge en manches supplémentaires, la Note 4 du règlement exige ' +
+    'que les points marqués/alloués DANS les manches supplémentaires soient EXCLUS du ratio ' +
+    'de bris d\'égalité (RD et RO) : seuls les points des manches régulières comptent.');
+  addText(
+    'Le système ne fait PAS cet ajustement automatiquement (cas rare, et il faudrait saisir ' +
+    'le pointage réglementaire). À la place : indiquez "Supplémentaires" dans la colonne ' +
+    '"Type de fin" de la partie. Le classement du pool affichera alors un ⚠ rappelant que ' +
+    'les ratios RD/RO de ce pool incluent des points de supplémentaires, et que ces ratios ' +
+    'doivent être recalculés à la main (en excluant les supplémentaires) via la feuille ' +
+    'Manches_Détail — mais SEULEMENT si un bris d\'égalité se joue réellement sur le ratio.');
+  addText(
+    'Le gagnant, la fiche victoires-défaites et la fiche tête-à-tête (1er critère de bris ' +
+    'd\'égalité) restent toujours corrects : seul le ratio (2e et 3e critères) est concerné.');
 
   addBlank();
   addTitle('MISE À JOUR AUTOMATIQUE DES CLASSEMENTS', COLOR_SECTION);
@@ -1405,7 +1434,7 @@ function buildStandingsSheet(ss, classe, games) {
 
     var standings = calculatePoolStandings(poolGames, teams);
 
-    row = writePoolSection(sheet, row, classe, p, standings);
+    row = writePoolSection(sheet, row, classe, p, standings, poolGames);
 
     standings.forEach(function (s) {
       poolStatsByTeam[s.team] = s;
@@ -1496,9 +1525,20 @@ function applyHeaderNotes(sheet, headerRow, notesByCol) {
 }
 
 /**
- * Écrit une section de classement de pool. Retourne la prochaine ligne libre.
+ * Une partie est-elle allée en manches supplémentaires ? (marquée par le
+ * registraire via Type de fin = "Supplémentaires"). Sert à signaler, dans les
+ * classements, que les ratios incluent des points de supplémentaires à exclure
+ * manuellement selon la Note 4 (Art. 42.11).
  */
-function writePoolSection(sheet, startRow, classe, pool, standings) {
+function gameIsSupp(g) {
+  return g && g.type === 'Supplémentaires';
+}
+
+/**
+ * Écrit une section de classement de pool. Retourne la prochaine ligne libre.
+ * @param {Array} poolGames  parties du pool — pour signaler les manches supplémentaires.
+ */
+function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
   var row = startRow;
 
   // Titre de section.
@@ -1539,6 +1579,24 @@ function writePoolSection(sheet, startRow, classe, pool, standings) {
     }
     row++;
   });
+
+  // Avertissement Note 4 : si une partie du pool est allée en supplémentaires,
+  // les ratios RD/RO ci-dessus incluent des points de supplémentaires à exclure.
+  var suppGames = (poolGames || []).filter(gameIsSupp);
+  if (suppGames.length > 0) {
+    var details = suppGames.map(function (g) {
+      return g.local + ' vs ' + g.visiteur +
+             (g.partie ? ' (partie #' + g.partie + ')' : '');
+    }).join(' ; ');
+    sheet.getRange(row, 1, 1, 13).merge();
+    sheet.getRange(row, 1)
+      .setValue('⚠ Manches supplémentaires : ' + details + '. Les ratios RD/RO ci-dessus ' +
+                'incluent les points des supplémentaires — à recalculer à la main en les ' +
+                'EXCLUANT (Note 4, Art. 42.11) si un bris d\'égalité par ratio est en jeu. ' +
+                'Voir la feuille Manches_Détail.')
+      .setWrap(true).setBackground(COLOR_INPUT).setVerticalAlignment('top');
+    row++;
+  }
 
   return row;
 }
@@ -1582,7 +1640,12 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
     });
     var st = computeTeamStats(team, teamGames, true);
 
-    var note = needsManual ? '⚠ Vérif. manuelle (Manches_Détail)' : '';
+    // Note : vérif. manuelle Priorité 4 et/ou ratio incluant des supplémentaires
+    // (Note 4) — les deux peuvent coexister.
+    var noteParts = [];
+    if (needsManual) { noteParts.push('⚠ Vérif. manuelle (Manches_Détail)'); }
+    if (teamGames.some(gameIsSupp)) { noteParts.push('⚠ Supp. — ratio à ajuster (Note 4)'); }
+    var note = noteParts.join(' ');
     var rowData = [
       basePosition + idx, team, poolOf[team] || '',
       st.v, st.d,
@@ -1751,7 +1814,7 @@ function simulateMatchResults() {
       [ 4,  3, 6, 2, 'Normal'],   // M1 T0 vs T1  → T0 gagne (walk-off bas 6e, 2 ret.)
       [ 2,  8, 6, 0, 'Normal'],   // M2 T0 vs T2  → T2 gagne
       [ 7,  1, 6, 0, 'Normal'],   // M3 T0 vs T3  → T0 gagne
-      [ 3,  4, 7, 0, 'Normal'],   // M4 T1 vs T2  → T2 gagne (supplémentaire 7e)
+      [ 3,  4, 7, 0, 'Supplémentaires'],   // M4 T1 vs T2  → T2 gagne (supplémentaire 7e → ⚠ Note 4)
       [11,  1, 5, 0, 'Mercy' ],   // M5 T1 vs T3  → T1 gagne (Mercy 5e manche)
       [ 6,  2, 6, 0, 'Normal'],   // M6 T2 vs T3  → T2 gagne
 
@@ -1777,8 +1840,8 @@ function simulateMatchResults() {
       // ── Pool 2 ── T3 1er net ; supplémentaires 7e (walk-off) et 8e ───────
       //  T3 3V-0D, T1 2V-1D, T0 1V-2D, T2 0V-3D.
       [ 6,  8, 6, 0, 'Normal'],   // M1 T0 vs T1  → T1 gagne
-      [ 5,  4, 7, 1, 'Normal'],   // M2 T0 vs T2  → T0 gagne (walk-off supp. 7e, 1 ret.)
-      [ 1,  2, 8, 0, 'Normal'],   // M3 T0 vs T3  → T3 gagne (supplémentaire 8e)
+      [ 5,  4, 7, 1, 'Supplémentaires'],   // M2 T0 vs T2  → T0 gagne (walk-off supp. 7e → ⚠ Note 4)
+      [ 1,  2, 8, 0, 'Supplémentaires'],   // M3 T0 vs T3  → T3 gagne (supplémentaire 8e → ⚠ Note 4)
       [ 9,  0, 4, 0, 'Mercy' ],   // M4 T1 vs T2  → T1 gagne (Mercy 4e manche)
       [ 4,  5, 6, 0, 'Normal'],   // M5 T1 vs T3  → T3 gagne
       [ 3,  8, 6, 0, 'Normal'],   // M6 T2 vs T3  → T3 gagne
