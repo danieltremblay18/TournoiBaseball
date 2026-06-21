@@ -10,8 +10,9 @@ colle tel quel dans l'éditeur Apps Script lié à une feuille Google.
 
 ## Fonctionnalités
 
-- **Horaire collé, pas de saisie d'équipes** — on colle l'horaire officiel de Baseball
-  Québec dans l'onglet `Configuration` ; tout le reste se régénère à partir de là.
+- **Horaire collé, pas de saisie d'équipes** — on colle l'horaire du tournoi (fichier
+  propre à l'ABMR, produit par le comité du tournoi) dans l'onglet `Configuration` ;
+  tout le reste se régénère à partir de là.
 - **Saisie des résultats** dans `Résultats A / B` avec scores, équipe locale, manches,
   type de fin (Normal / Mercy / Forfait).
 - **Calcul des manches fractionnaires** (⅓, ⅔) pour les fins hâtives (walk-off, mercy),
@@ -43,8 +44,9 @@ colle tel quel dans l'éditeur Apps Script lié à une feuille Google.
 
 ## Utilisation annuelle
 
-1. Coller l'horaire de l'onglet `Horaire globalArbitre` du fichier Excel fourni par
-   Baseball Québec dans l'onglet **`Configuration`**, à partir de la cellule **A2**.
+1. Coller l'horaire de l'onglet `Horaire globalArbitre` du fichier Excel du tournoi
+   (produit par le comité du tournoi de l'ABMR) dans l'onglet **`Configuration`**, à
+   partir de la cellule **A2**.
 2. Menu › **Générer les matchs** (répartit chaque match dans `Résultats A` ou `B`
    selon la colonne `# pool`).
 3. Saisir les résultats dans `Résultats A / B`. Le classement se met à jour
@@ -90,7 +92,7 @@ changer les fiches victoires-défaites.
 | `tests/test_tiebreaker.js` | Test hors-ligne du bris d'égalité + `isRowComplete` |
 | `CLAUDE.md` | Notes d'architecture pour le développement |
 | `Regles13U_2026.md` / `ReglesRegie2026.pdf` | Règles officielles Baseball Québec |
-| `Horaire-tournoi-2026.xlsx` | Format d'horaire officiel (référence) |
+| `Horaire-tournoi-2026.xlsx` | Horaire du tournoi de l'ABMR (référence de format) |
 | `Équipes.txt` | Notes de travail |
 
 ## Licence

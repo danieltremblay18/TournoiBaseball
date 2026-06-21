@@ -8,7 +8,7 @@ A single Google Apps Script file (`TournoiBaseball_Script.gs`) that turns a Goog
 
 Supporting files (not code, read for domain context when relevant):
 - `Regles13U_2026.md` / `ReglesRegie2026.pdf` — official Baseball Québec rules (field dimensions, game length, mercy rule, extra innings, **Art. 42.11 tiebreaker procedure**). The tiebreaker logic in the script is a direct implementation of Art. 42.11.
-- `Horaire-tournoi-2026.xlsx` — the official schedule file provided yearly by Baseball Québec. Its `Horaire globalArbitre` tab defines the exact column format that gets pasted into the "Configuration" sheet (`# de match`, `# pool`, `Jour`, `Heure`, `Terrain`, `Équipe 1`, `Équipe 2`, plus referee/scorekeeper columns that the script ignores).
+- `Horaire-tournoi-2026.xlsx` — the tournament's own schedule file, produced each year by the ABMR tournament committee (NOT an official Baseball Québec file — only the rules above are). Its `Horaire globalArbitre` tab defines the exact column format that gets pasted into the "Configuration" sheet (`# de match`, `# pool`, `Jour`, `Heure`, `Terrain`, `Équipe 1`, `Équipe 2`, plus referee/scorekeeper columns that the script ignores).
 - `Équipes.txt` — scratch notes, not authoritative.
 
 ## Working with the code
@@ -44,7 +44,7 @@ Configuration (pasted schedule)
    → calculateStandings() → buildStandingsSheet()  [pool standings, Étape B/C, semifinals]
 ```
 
-**Configuration is a pasted schedule, not a roster.** It mirrors the exact column layout of the `Horaire globalArbitre` tab from the official Excel file (`createConfigSheet`). There's no per-team input UI — the registrar copy-pastes the year's real schedule starting at A2 every year, and everything else regenerates from it. `getTeams(classe)` derives the team roster per pool by scanning this schedule (teams are no longer declared anywhere separately).
+**Configuration is a pasted schedule, not a roster.** It mirrors the exact column layout of the `Horaire globalArbitre` tab from the ABMR tournament's Excel file (`createConfigSheet`). There's no per-team input UI — the registrar copy-pastes the year's real schedule starting at A2 every year, and everything else regenerates from it. `getTeams(classe)` derives the team roster per pool by scanning this schedule (teams are no longer declared anywhere separately).
 
 **Home team is unknown at generation time and is a separate concept from "Équipe 1"/"Équipe 2".** The schedule only pairs two teams; nobody knows who's the home team until the game is actually played. `generateGames()` writes "Équipe 1"/"Équipe 2" (just the matchup, no home/away meaning) plus an empty "Équipe Locale" column with a per-row dropdown (only the 2 teams in that match). The registrar sets it when entering the score. `getGameResults()` resolves it: if "Équipe Locale" matches Équipe 1 or 2 it's used directly (`homeKnown = true`); if blank, the code falls back to a symmetric (no walk-off advantage) inning calculation and logs a warning (`homeKnown = false`) — this only matters for games that ended early (walk-off/mercy), since a full 6-inning game is symmetric regardless of who's home.
 

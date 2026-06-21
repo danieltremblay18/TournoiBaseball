@@ -15,10 +15,10 @@
  *  6. Un menu "🏆 Tournoi Baseball" apparaît dans la barre de menu.
  *  7. Cliquer "Initialiser les feuilles" (autoriser le script au besoin).
  *  8. Coller l'horaire dans la feuille "Configuration" : copier les données de
- *     l'onglet "Horaire globalArbitre" du fichier Excel fourni par Baseball
- *     Québec (lignes 2 et suivantes, sans l'en-tête) et les coller à partir de
- *     la cellule A2. Cette étape est la SEULE à refaire chaque année — le
- *     reste se régénère automatiquement.
+ *     l'onglet "Horaire globalArbitre" du fichier Excel du tournoi (produit par
+ *     le comité du tournoi de l'ABMR) — lignes 2 et suivantes, sans l'en-tête —
+ *     et les coller à partir de la cellule A2. Cette étape est la SEULE à refaire
+ *     chaque année — le reste se régénère automatiquement.
  *  9. Cliquer "Générer les matchs" : répartit chaque match dans "Résultats A"
  *     ou "Résultats B" selon la colonne "# pool" (ex. "3A" = Pool 3, Classe A).
  * 10. Pour chaque partie jouée : indiquer l'"Équipe Locale" (inconnue à l'avance,
@@ -64,7 +64,8 @@ var COLOR_SECTION   = '#cfd8dc';
 
 // Les 6 matchs round-robin d'un pool de 4 équipes (indices 0..3). Le vrai horaire
 // (Configuration) ne suit PAS cette matrice : il est collé directement depuis le
-// fichier Excel fourni par Baseball Québec, peu importe l'ordre des matchs. Cette
+// fichier Excel du tournoi (produit par le comité de l'ABMR), peu importe l'ordre
+// des matchs. Cette
 // matrice ne sert plus qu'à dimensionner les feuilles (3 pools x 6 matchs = 18 par classe).
 var GAME_MATRIX = [
   [0, 1],   // E1 vs E2
@@ -284,10 +285,11 @@ function createAllSheets() {
 
 /**
  * Feuille Configuration : horaire complet du tournoi (36 matchs), au même
- * format que l'onglet "Horaire globalArbitre" du fichier Excel fourni chaque
- * année par Baseball Québec. Il suffit de coller les données de cet onglet
- * ici (à partir de A2, sans la ligne d'en-tête) pour que tout le système
- * (Résultats A/B, classements) se régénère via "Générer les matchs".
+ * format que l'onglet "Horaire globalArbitre" du fichier Excel du tournoi
+ * (produit chaque année par le comité du tournoi de l'ABMR). Il suffit de coller
+ * les données de cet onglet ici (à partir de A2, sans la ligne d'en-tête) pour
+ * que tout le système (Résultats A/B, classements) se régénère via "Générer les
+ * matchs".
  */
 function createConfigSheet(ss) {
   var sheet = getOrCreateSheet(ss, SHEET_CONFIG);
@@ -303,9 +305,9 @@ function createConfigSheet(ss) {
 
   sheet.getRange(1, 1).setNote(
     'Collez ici les données de l\'onglet "Horaire globalArbitre" du fichier Excel ' +
-    'fourni par Baseball Québec (les lignes de matchs SEULEMENT, à partir de la ligne ' +
-    '2 — la ligne d\'en-tête est déjà écrite ici, dans le même ordre de colonnes). ' +
-    'Cliquez ensuite sur "Générer les matchs".');
+    'du tournoi (produit par le comité du tournoi de l\'ABMR) — les lignes de matchs ' +
+    'SEULEMENT, à partir de la ligne 2, la ligne d\'en-tête est déjà écrite ici, dans ' +
+    'le même ordre de colonnes. Cliquez ensuite sur "Générer les matchs".');
   sheet.getRange(1, 2).setNote(
     'Pool + Classe combinés (ex. "3A" = Pool 3, Classe A ; "1B" = Pool 1, Classe B). ' +
     'Sert à répartir automatiquement chaque match dans l\'onglet "Résultats A" ou ' +
@@ -347,7 +349,7 @@ function createResultsSheet(ss, classe) {
     1:  'POOL — Numéro du pool (1, 2 ou 3), extrait automatiquement de la colonne ' +
         '"# pool" de la Configuration (ex. "3A" → Pool 3). Copié automatiquement ; ' +
         'pour corriger, modifiez la Configuration puis "Générer les matchs".',
-    2:  'PARTIE # — Numéro de match tel que fourni par l\'horaire officiel (colonne ' +
+    2:  'PARTIE # — Numéro de match tel que fourni par l\'horaire du tournoi (colonne ' +
         '"# de match" de la Configuration). Copié automatiquement.',
     3:  'JOUR — Date de la partie, copiée automatiquement depuis la Configuration.',
     4:  'HEURE — Heure de la partie, copiée automatiquement depuis la Configuration.',
@@ -532,8 +534,9 @@ function createHelpSheet(ss) {
   addTitle('CONFIGURATION : COLLER L\'HORAIRE', COLOR_SECTION);
   addText(
     'La feuille "Configuration" reçoit directement les données de l\'onglet "Horaire ' +
-    'globalArbitre" du fichier Excel fourni chaque année par Baseball Québec (copier ' +
-    'les lignes de matchs à partir de la ligne 2, coller à partir de la cellule A2). La ' +
+    'globalArbitre" du fichier Excel du tournoi, produit chaque année par le comité du ' +
+    'tournoi de l\'ABMR (copier les lignes de matchs à partir de la ligne 2, coller à ' +
+    'partir de la cellule A2). La ' +
     'colonne "# pool" (ex. "3A" = Pool 3, Classe A) sert à répartir automatiquement ' +
     'chaque match dans "Résultats A" ou "Résultats B" lorsqu\'on clique sur "Générer ' +
     'les matchs".');
@@ -793,7 +796,7 @@ function parsePoolClasse(raw) {
 /**
  * Lit et interprète toutes les parties saisies dans la feuille Configuration
  * (format copié-collé depuis l'onglet "Horaire globalArbitre" du fichier Excel
- * fourni par Baseball Québec). Ignore les lignes vides ou mal formées.
+ * du tournoi, produit par le comité de l'ABMR). Ignore les lignes vides ou mal formées.
  * @return {Array<Object>} ex: { partieNum, pool, classe, jour, heure, terrain, teamA, teamB }
  */
 function readScheduleRows(ss) {
