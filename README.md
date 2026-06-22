@@ -13,10 +13,13 @@ colle tel quel dans l'éditeur Apps Script lié à une feuille Google.
 - **Horaire collé, pas de saisie d'équipes** — on colle l'horaire du tournoi (fichier
   propre à l'ABMR, produit par le comité du tournoi) dans l'onglet `Configuration` ;
   tout le reste se régénère à partir de là.
-- **Saisie des résultats** dans `Résultats A / B` avec scores, équipe locale, manches,
-  type de fin (Normal / Mercy / Forfait).
-- **Calcul des manches fractionnaires** (⅓, ⅔) pour les fins hâtives (walk-off, mercy),
-  nécessaire à la justesse des ratios de bris d'égalité.
+- **Saisie des résultats** dans `Résultats A / B` avec scores, équipe locale, manches
+  jouées, manches prévues (longueur réglementaire, 5 ou 6) et type de fin (Normal / Mercy /
+  Forfait / Supplémentaires).
+- **Calcul des manches fractionnaires** (⅓, ⅔) pour les fins hâtives (walk-off, mercy) et
+  les victoires locales (la locale ne complète pas sa dernière manche au bâton), nécessaire
+  à la justesse des ratios de bris d'égalité. Le crédit défensif d'un Mercy suit le nombre
+  de manches **prévues** (5 lors d'une journée écourtée, pas un 6 figé).
 - **Classements automatiques** par pool + Étapes B/C + récapitulatif des demi-finales.
 - **Bris d'égalité récursif à trois niveaux** (Art. 42.11) : tête-à-tête → ratio
   RA/manches défensives → ratio RS/manches offensives → manches en avance

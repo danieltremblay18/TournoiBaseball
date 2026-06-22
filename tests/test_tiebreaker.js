@@ -219,6 +219,45 @@ suppChecks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test de calculateInnings (manches réglementaires + victoire locale) -----
+// Signature : calculateInnings(scoreLocal, scoreVis, manchesCompletes, retraits,
+//             typeFin, homeKnown, regulation).
+// Vérifie : (1) toute victoire LOCALE crédite la locale d'une dernière manche
+// offensive incomplète et retranche la dernière manche défensive de la visiteuse
+// (pas de manche défensive offerte) ; (2) le crédit défensif d'un Mercy suit les
+// manches PRÉVUES (5 lors d'une journée écourtée), pas un 6 figé.
+function approx(a, b) { return Math.abs(a - b) < 1e-9; }
+function innEq(inn, oL, dL, oV, dV) {
+  return approx(inn.offLocal, oL) && approx(inn.defLocal, dL) &&
+         approx(inn.offVisiteur, oV) && approx(inn.defVisiteur, dV);
+}
+var innChecks = [
+  // Victoire locale complète : la locale menait, n'a pas frappé en bas -> 5/6/6/5.
+  ['Victoire locale complète 7-5 (K6 L0 prév6) -> 5/6/6/5',
+   innEq(calculateInnings(7, 5, 6, 0, 'Normal', true, 6), 5, 6, 6, 5)],
+  // Walk-off bas 6e avec 2 retraits -> 5⅔ / 6 / 6 / 5⅔ (inchangé).
+  ['Walk-off 6-5 (K6 L2) -> 5⅔/6/6/5⅔',
+   innEq(calculateInnings(6, 5, 6, 2, 'Normal', true, 6), 5 + 2 / 3, 6, 6, 5 + 2 / 3)],
+  // Mercy locale, partie prévue 5 manches : def locale = 5 (pas 6).
+  ['Mercy locale 10-0 prévues=5 (K5 L0) -> 4/5/5/4',
+   innEq(calculateInnings(10, 0, 5, 0, 'Mercy', true, 5), 4, 5, 5, 4)],
+  // Mercy visiteuse, prévues 5 : def visiteuse (gagnante) = 5.
+  ['Mercy visiteuse 0-12 prévues=5 (K5 L0) -> 5/5/5/5',
+   innEq(calculateInnings(0, 12, 5, 0, 'Mercy', true, 5), 5, 5, 5, 5)],
+  // Victoire visiteuse complète : symétrique 6/6/6/6 (la locale a frappé jusqu'au bout).
+  ['Victoire visiteuse 3-7 (K6 L0) -> 6/6/6/6',
+   innEq(calculateInnings(3, 7, 6, 0, 'Normal', true, 6), 6, 6, 6, 6)],
+  // Équipe locale non indiquée (homeKnown=false) : repli symétrique.
+  ['Locale inconnue 7-5 (homeKnown=false) -> 6/6/6/6',
+   innEq(calculateInnings(7, 5, 6, 0, 'Normal', false, 6), 6, 6, 6, 6)]
+];
+
+console.log('\n--- Vérifications : calculateInnings (manches prévues + victoire locale) ---');
+innChecks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);

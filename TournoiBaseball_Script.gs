@@ -180,10 +180,10 @@ function handleResultEdit(e) {
   });
   if (!classe) { return; }
 
-  // L'édition doit toucher au moins une colonne de saisie H..M (8..13).
+  // L'édition doit toucher au moins une colonne de saisie H..N (8..14).
   var startCol = e.range.getColumn();
   var endCol   = startCol + e.range.getNumColumns() - 1;
-  if (endCol < 8 || startCol > 13) { return; }
+  if (endCol < 8 || startCol > 14) { return; }
 
   // Lignes éditées (ignore l'en-tête, ligne 1).
   var startRow = Math.max(e.range.getRow(), 2);
@@ -194,11 +194,12 @@ function handleResultEdit(e) {
   var recalc = false;
 
   // (a) Au moins une ligne éditée est-elle désormais complète ?
-  var hm = sheet.getRange(startRow, 8, endRow - startRow + 1, 6).getValues();
+  //     On lit H..N (8..14) : r[5] = Manches prévues, r[6] = Type de fin.
+  var hm = sheet.getRange(startRow, 8, endRow - startRow + 1, 7).getValues();
   for (var i = 0; i < hm.length; i++) {
     var r = hm[i];
     if (isRowComplete({ scoreA: r[0], scoreB: r[1], local: r[2],
-                        manches: r[3], retraits: r[4], type: r[5] })) {
+                        manches: r[3], retraits: r[4], type: r[6] })) {
       recalc = true;
       break;
     }
@@ -336,8 +337,8 @@ function createResultsSheet(ss, classe) {
   var headers = [
     'Pool', 'Partie #', 'Jour', 'Heure', 'Terrain', 'Équipe 1', 'Équipe 2',
     'Score Équipe 1', 'Score Équipe 2', 'Équipe Locale', 'Manches complètes',
-    'Retraits en fin', 'Type de fin', 'Gagnant', 'MO Éq.1', 'MD Éq.1',
-    'MO Éq.2', 'MD Éq.2'
+    'Retraits en fin', 'Manches prévues', 'Type de fin', 'Gagnant', 'MO Éq.1',
+    'MD Éq.1', 'MO Éq.2', 'MD Éq.2'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   styleHeader(sheet.getRange(1, 1, 1, headers.length));
@@ -363,53 +364,63 @@ function createResultsSheet(ss, classe) {
         'savoir à l\'avance, l\'horaire ne précise pas qui reçoit qui. C\'est le ' +
         'registraire qui l\'indique, en même temps que le score, en choisissant dans la ' +
         'liste déroulante (les 2 équipes du match). Cette info sert à calculer les ' +
-        'fractions de manches des colonnes O à R.',
+        'fractions de manches des colonnes P à S.',
     11: 'MANCHES COMPLÈTES — Numéro de la dernière manche jouée (normalement 6, le ' +
         'nombre réglementaire en 13U). Si la partie s\'arrête avant via la règle du ' +
         'marqueur ("Mercy"), indiquer la manche où elle s\'est arrêtée (ex. 5). Si elle ' +
-        'se prolonge en supplémentaire, indiquer la dernière manche jouée (ex. 7, 8...).',
+        'se prolonge en supplémentaire, indiquer la dernière manche jouée (ex. 7, 8...). ' +
+        'NE PAS confondre avec "Manches prévues" (col. M).',
     12: 'RETRAITS EN FIN — Nombre de retraits (0, 1 ou 2) déjà comptés dans la dernière ' +
         'demi-manche AU MOMENT où la partie s\'est terminée. Pertinent SEULEMENT si ' +
         'l\'équipe locale a gagné en frappant le point décisif avant d\'avoir complété ' +
         'ses 3 retraits (victoire "walk-off") ; sinon, laisser à 0. Cette valeur donne la ' +
-        'fraction de manche utilisée dans les colonnes O à R : 1 retrait = ⅓ de manche, ' +
+        'fraction de manche utilisée dans les colonnes P à S : 1 retrait = ⅓ de manche, ' +
         '2 retraits = ⅔ de manche.\n' +
         'Ex. : score final 4-3, la locale gagne dans le bas de la 6e avec 1 retrait ' +
         '(K=6, L=1) → la locale obtient 5⅓ manches OFFENSIVES (pas 6, sa dernière manche ' +
         'au bâton a été interrompue) et la visiteuse 5⅓ manches DÉFENSIVES (pas 6, elle ' +
         'n\'a pas eu le temps de compléter ses 3 retraits).',
-    13: 'TYPE DE FIN — "Normal" = partie jouée jusqu\'au bout. "Mercy" = arrêtée avant ' +
+    13: 'MANCHES PRÉVUES — Nombre de manches RÉGLEMENTAIRES prévues pour CETTE partie ' +
+        '(normalement 6 en 13U ; mettre 5 lors d\'une journée écourtée par la pluie, etc.). ' +
+        'Pré-rempli à 6. Sert à créditer le bon nombre de manches DÉFENSIVES à l\'équipe ' +
+        'gagnante d\'un Mercy ou d\'un Forfait (la règle BQ donne au gagnant le crédit du ' +
+        'nombre réglementaire de manches en défense). À NE PAS confondre avec "Manches ' +
+        'complètes" (col. K = dernière manche réellement jouée).',
+    14: 'TYPE DE FIN — "Normal" = partie jouée jusqu\'au bout. "Mercy" = arrêtée avant ' +
         'la fin (règle de l\'écart de points). "Forfait" = une équipe ne se présente pas ' +
         'ou abandonne ; le score n\'indique alors que le gagnant, et les manches sont ' +
-        'automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant. ' +
+        'automatiquement comptées selon les manches prévues (col. M) pour le gagnant et ' +
+        '0-0 pour le perdant. ' +
         '"Supplémentaires" = partie prolongée au-delà des manches réglementaires. IMPORTANT ' +
         '(Note 4, Art. 42.11) : les points marqués/alloués en manches supplémentaires doivent ' +
         'être EXCLUS du ratio de bris d\'égalité. Le système ne le fait pas automatiquement : ' +
         'il signale ces parties par un ⚠ dans les Classements pour que le ratio (RD/RO) soit ' +
         'vérifié/ajusté à la main via la feuille Manches_Détail.',
-    14: 'GAGNANT — Calculé automatiquement à partir des scores (colonnes H et I). Ne ' +
+    15: 'GAGNANT — Calculé automatiquement à partir des scores (colonnes H et I). Ne ' +
         'pas modifier à la main, recalculé par "Mettre à jour les classements".',
-    15: 'MO ÉQ.1 (Manches Offensives, Équipe 1) — Manches à la batte jouées par l\'Équipe ' +
+    16: 'MO ÉQ.1 (Manches Offensives, Équipe 1) — Manches à la batte jouées par l\'Équipe ' +
         '1, calculé automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 ' +
-        'est la locale et gagne par walk-off : sa dernière manche au bâton est alors comptée ' +
-        'en fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle n\'a pas eu besoin de la ' +
-        'terminer.',
-    16: 'MD ÉQ.1 (Manches Défensives, Équipe 1) — Manches au champ jouées par l\'Équipe 1, ' +
+        'est la locale et GAGNE (walk-off, ou elle menait déjà et n\'est pas retournée ' +
+        'frapper en bas de la dernière manche) : sa dernière manche au bâton est alors ' +
+        'comptée en fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle ne l\'a pas ' +
+        'complétée.',
+    17: 'MD ÉQ.1 (Manches Défensives, Équipe 1) — Manches au champ jouées par l\'Équipe 1, ' +
         'calculé automatiquement. Égal au nombre de manches (col. K), SAUF si l\'Équipe 1 est ' +
-        'la visiteuse et perd par walk-off : sa dernière manche en défense est alors ' +
-        'comptée en fraction de tiers (⅓/⅔) selon la col. L, puisqu\'elle n\'a pas eu le ' +
-        'temps de la terminer.',
-    17: 'MO ÉQ.2 (Manches Offensives, Équipe 2) — Manches à la batte de l\'Équipe 2, calculé ' +
-        'automatiquement. Même logique que la colonne O (MO Éq.1), appliquée à l\'Équipe 2.',
-    18: 'MD ÉQ.2 (Manches Défensives, Équipe 2) — Manches au champ de l\'Équipe 2, calculé ' +
-        'automatiquement. Même logique que la colonne P (MD Éq.1), appliquée à l\'Équipe 2.'
+        'la visiteuse et que l\'équipe locale GAGNE (walk-off, ou la locale menait sans ' +
+        'frapper en bas) : la dernière manche en défense de l\'Équipe 1 est alors comptée ' +
+        'en fraction de tiers (⅓/⅔) selon la col. L — ou retranchée d\'une manche entière si ' +
+        'la locale n\'est pas retournée au bâton — puisqu\'elle n\'a pas eu lieu.',
+    18: 'MO ÉQ.2 (Manches Offensives, Équipe 2) — Manches à la batte de l\'Équipe 2, calculé ' +
+        'automatiquement. Même logique que la colonne P (MO Éq.1), appliquée à l\'Équipe 2.',
+    19: 'MD ÉQ.2 (Manches Défensives, Équipe 2) — Manches au champ de l\'Équipe 2, calculé ' +
+        'automatiquement. Même logique que la colonne Q (MD Éq.1), appliquée à l\'Équipe 2.'
   };
   Object.keys(notes).forEach(function (col) {
     sheet.getRange(1, Number(col)).setNote(notes[col]);
   });
 
   // Largeurs de colonnes.
-  var widths = [55, 70, 95, 70, 70, 150, 150, 95, 95, 150, 110, 100, 110, 150, 95, 95, 95, 95];
+  var widths = [55, 70, 95, 70, 70, 150, 150, 95, 95, 150, 110, 100, 110, 110, 150, 95, 95, 95, 95];
   for (var i = 0; i < widths.length; i++) {
     sheet.setColumnWidth(i + 1, widths[i]);
   }
@@ -420,12 +431,12 @@ function createResultsSheet(ss, classe) {
   // Ici on prépare seulement le formatage (validations, couleurs) pour 18 lignes.
   var nRows = POOLS.length * GAME_MATRIX.length;  // 18
 
-  // Validation pour "Type de fin" (col M = 13).
+  // Validation pour "Type de fin" (col N = 14).
   var typeRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['Normal', 'Mercy', 'Forfait', 'Supplémentaires'], true)
     .setAllowInvalid(false)
     .build();
-  sheet.getRange(2, 13, nRows, 1).setDataValidation(typeRule);
+  sheet.getRange(2, 14, nRows, 1).setDataValidation(typeRule);
 
   // Validation "Manches complètes" (col K = 11) : 1 à 9 (inclut manches supplémentaires).
   var inningRule = SpreadsheetApp.newDataValidation()
@@ -441,6 +452,13 @@ function createResultsSheet(ss, classe) {
     .build();
   sheet.getRange(2, 12, nRows, 1).setDataValidation(outsRule);
 
+  // Validation "Manches prévues" (col M = 13) : 1 à 9 (longueur réglementaire de la partie).
+  var regRule = SpreadsheetApp.newDataValidation()
+    .requireNumberBetween(1, 9)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, 13, nRows, 1).setDataValidation(regRule);
+
   // Validation "Équipe Locale" (col J = 10) : la liste (les 2 équipes du match)
   // dépend de chaque ligne — elle est appliquée ligne par ligne dans generateGames(),
   // une fois les deux équipes de chaque match connues. Tant que la partie n'est
@@ -450,8 +468,8 @@ function createResultsSheet(ss, classe) {
   // Couleurs : copiées de Configuration (gris) ; saisie manuelle (jaune) ; calculées (gris).
   sheet.getRange(2, 1, nRows, 7).setBackground(COLOR_CALC);    // A..G : copiées de Configuration
   sheet.getRange(2, 8, nRows, 2).setBackground(COLOR_INPUT);   // H, I : scores
-  sheet.getRange(2, 10, nRows, 4).setBackground(COLOR_INPUT);  // J, K, L, M
-  sheet.getRange(2, 14, nRows, 5).setBackground(COLOR_CALC);   // N..R : calculées
+  sheet.getRange(2, 10, nRows, 5).setBackground(COLOR_INPUT);  // J, K, L, M, N : saisie manuelle
+  sheet.getRange(2, 15, nRows, 5).setBackground(COLOR_CALC);   // O..S : calculées
 }
 
 /**
@@ -568,7 +586,8 @@ function createHelpSheet(ss) {
     'Numéro de la dernière manche jouée (1 à 9). Une partie 13U normale dure 6 manches ' +
     'réglementaires. Si la partie se termine plus tôt (règle du marqueur / "Mercy"), ' +
     'indiquer la manche où elle s\'est arrêtée (ex. 5). Si elle se prolonge en manches ' +
-    'supplémentaires, indiquer la dernière manche jouée (ex. 7, 8...).');
+    'supplémentaires, indiquer la dernière manche jouée (ex. 7, 8...). À NE PAS confondre ' +
+    'avec "Manches prévues" (col. M).');
   addColumnDoc('L — Retraits en fin',
     'Nombre de retraits (0, 1 ou 2) déjà comptés dans la dernière demi-manche AU MOMENT ' +
     'où la partie s\'est terminée — pertinent seulement si l\'équipe locale a gagné en ' +
@@ -576,23 +595,30 @@ function createHelpSheet(ss) {
     '"walk-off"). Si la partie est allée jusqu\'au bout normalement (3 retraits) ou que ' +
     'la visiteuse a gagné, laisser à 0. C\'est cette valeur qui détermine la fraction de ' +
     'manche calculée plus bas (1 retrait = ⅓ de manche, 2 retraits = ⅔ de manche).');
-  addColumnDoc('M — Type de fin',
+  addColumnDoc('M — Manches prévues',
+    'Nombre de manches RÉGLEMENTAIRES prévues pour CETTE partie (pré-rempli à 6 ; mettre 5 ' +
+    'lors d\'une journée écourtée par la pluie, etc.). Sert à créditer le bon nombre de ' +
+    'manches DÉFENSIVES au gagnant d\'un Mercy ou d\'un Forfait (la règle BQ donne au ' +
+    'gagnant le crédit du nombre réglementaire de manches en défense). À NE PAS confondre ' +
+    'avec "Manches complètes" (col. K = dernière manche réellement jouée).');
+  addColumnDoc('N — Type de fin',
     '"Normal" = partie jouée selon les règles standards jusqu\'au bout. "Mercy" = partie ' +
     'arrêtée avant la fin en raison de la règle de l\'écart de points. "Forfait" = une ' +
     'équipe ne se présente pas ou abandonne ; le score n\'indique alors que qui gagne, et ' +
-    'les manches sont automatiquement comptées 6-6 pour le gagnant et 0-0 pour le perdant. ' +
+    'les manches sont automatiquement comptées, pour le gagnant, selon les manches prévues ' +
+    '(col. M), et 0-0 pour le perdant. ' +
     '"Supplémentaires" = partie prolongée au-delà des manches réglementaires (voir la ' +
     'section "Manches supplémentaires et Note 4" plus bas).');
-  addColumnDoc('N — Gagnant (calculé)',
+  addColumnDoc('O — Gagnant (calculé)',
     'Nom de l\'équipe gagnante, déterminé automatiquement à partir des scores (colonnes ' +
     'H et I). Ne pas modifier à la main — recalculé par "Mettre à jour les classements".');
-  addColumnDoc('O / P — MO Éq.1 / MD Éq.1 (calculé)',
+  addColumnDoc('P / Q — MO Éq.1 / MD Éq.1 (calculé)',
     'MO = Manches OFFENSIVES (à la batte) ; MD = Manches DÉFENSIVES (au champ) jouées par ' +
     'l\'Équipe 1, en fractions de tiers si la partie s\'est terminée par un walk-off ou ' +
     'un Mercy en milieu de manche. Voir la section "Fractions de manches" ci-dessous. ' +
     'Calculé automatiquement.');
-  addColumnDoc('Q / R — MO Éq.2 / MD Éq.2 (calculé)',
-    'Même chose que O / P (MO/MD), mais pour l\'Équipe 2.');
+  addColumnDoc('R / S — MO Éq.2 / MD Éq.2 (calculé)',
+    'Même chose que P / Q (MO/MD), mais pour l\'Équipe 2.');
 
   addBlank();
   addTitle('POURQUOI DES FRACTIONS DE MANCHES (⅓, ⅔) ?', COLOR_SECTION);
@@ -605,14 +631,14 @@ function createHelpSheet(ss) {
     'soient justes, il faut compter le nombre RÉEL de manches jouées par chaque équipe — ' +
     'pas seulement le nombre de manches de la partie.');
   addText(
-    'Quand la partie se termine par un point gagnant frappé par l\'équipe locale dans le ' +
-    'bas d\'une manche (avant ses 3 retraits — une victoire "walk-off"), deux ' +
-    'demi-manches restent incomplètes : l\'équipe locale n\'a pas eu besoin de terminer ' +
-    'sa manche à la batte, et l\'équipe visiteuse n\'a pas eu besoin de terminer sa ' +
-    'manche en défense (elle n\'a pas obtenu ses 3 retraits, le jeu s\'est arrêté dès que ' +
-    'le point a compté). Tout le reste de la partie (le haut de cette même manche, et ' +
-    'toutes les manches précédentes) s\'est joué normalement et compte comme des manches ' +
-    'pleines.');
+    'Dès que l\'équipe LOCALE gagne, elle n\'a jamais complété sa dernière manche au bâton, ' +
+    'et deux demi-manches restent incomplètes. Deux situations mènent à ce résultat : ' +
+    '(1) walk-off — la locale marque le point gagnant dans le bas d\'une manche avant ses ' +
+    '3 retraits ; (2) la locale menait déjà après le haut de la dernière manche et n\'est ' +
+    'donc pas retournée frapper en bas. Dans les deux cas, la locale n\'a pas eu besoin de ' +
+    'terminer sa manche à la batte, et la visiteuse n\'a pas joué cette demi-manche en ' +
+    'défense. Tout le reste de la partie (le haut de cette même manche et toutes les ' +
+    'manches précédentes) s\'est joué normalement et compte comme des manches pleines.');
   addText(
     'La fraction se calcule à partir du nombre de retraits déjà comptés (colonne L) au ' +
     'moment où le point gagnant a été marqué :  0 retrait → la manche ne compte pas pour ' +
@@ -632,17 +658,29 @@ function createHelpSheet(ss) {
     'incluant le haut de la 6e) — 5⅓ manches DÉFENSIVES (n\'a joué qu\'⅓ de la 6e en ' +
     'défense avant que le point gagnant ne mette fin à la partie).');
   addBlank();
+  addText('AUTRE EXEMPLE (la locale menait, sans frapper en bas) :', true);
   addText(
-    'Si la partie va jusqu\'au bout normalement (3 retraits complétés en bas de la ' +
-    'dernière manche, ou victoire de la visiteuse), AUCUNE fraction n\'est utilisée : ' +
-    'les deux équipes ont joué exactement le même nombre de manches pleines.');
+    'Partie de 6 manches : la locale gagne 7-5 ; elle menait déjà après le haut de la 6e et ' +
+    'n\'est pas retournée frapper en bas (colonne K = 6, colonne L = 0) :');
+  addText(
+    '• Équipe locale : 5 manches OFFENSIVES (n\'a pas frappé en bas de la 6e) — 6 manches ' +
+    'DÉFENSIVES (a joué tout le haut de chaque manche, incluant la 6e).');
+  addText(
+    '• Équipe visiteuse : 6 manches OFFENSIVES — 5 manches DÉFENSIVES (n\'a pas joué le bas ' +
+    'de la 6e en défense, puisque la locale n\'a pas frappé).');
+  addBlank();
+  addText(
+    'AUCUNE fraction (ni demi-manche) n\'est utilisée UNIQUEMENT quand la VISITEUSE gagne ' +
+    '(la locale a alors frappé jusqu\'au bout pour tenter de remonter) : les deux équipes ' +
+    'ont joué le même nombre de manches pleines. Une victoire de la locale est, elle, ' +
+    'TOUJOURS asymétrique (voir les deux exemples ci-dessus).');
   addText(
     'Cas particulier "Mercy" : si la règle de l\'écart de points est déclenchée alors ' +
     'que l\'équipe locale est à la batte (dans le bas d\'une manche), les mêmes fractions ' +
-    's\'appliquent que pour une victoire walk-off. Si elle est déclenchée à un autre ' +
-    'moment (manche complète, ou victoire de la visiteuse), il n\'y a pas de fraction : ' +
-    'l\'équipe gagnante reçoit simplement 6 manches en défense (le maximum ' +
-    'réglementaire), comme si la partie avait été jouée au complet.');
+    's\'appliquent que pour une victoire walk-off. Dans tous les cas, l\'équipe GAGNANTE ' +
+    'd\'un Mercy reçoit le crédit du nombre de manches DÉFENSIVES PRÉVUES (colonne M — ' +
+    '6 en temps normal, 5 lors d\'une journée écourtée), comme si elle avait lancé toute ' +
+    'la partie réglementaire.');
 
   addBlank();
   addTitle('MANCHES SUPPLÉMENTAIRES ET NOTE 4 (Art. 42.11)', COLOR_SECTION);
@@ -722,7 +760,7 @@ function generateGames() {
     var nRows = matches.length;
     if (nRows === 0) {
       var maxRowsEmpty = sheet.getMaxRows();
-      if (maxRowsEmpty > 1) { sheet.getRange(2, 1, maxRowsEmpty - 1, 18).clearContent(); }
+      if (maxRowsEmpty > 1) { sheet.getRange(2, 1, maxRowsEmpty - 1, 19).clearContent(); }
       return;
     }
 
@@ -731,7 +769,7 @@ function generateGames() {
     var existingByKey = {};
     var prevLast = sheet.getLastRow();
     if (prevLast >= 2) {
-      var prevData = sheet.getRange(2, 1, prevLast - 1, 18).getValues();
+      var prevData = sheet.getRange(2, 1, prevLast - 1, 19).getValues();
       prevData.forEach(function (r) {
         var key = r[0] + '|' + r[1];
         existingByKey[key] = r;
@@ -748,15 +786,16 @@ function generateGames() {
         prev ? prev[9] : '',  // J : Équipe Locale
         prev ? prev[10] : '', // K : Manches complètes
         prev ? prev[11] : '', // L : Retraits en fin
-        prev ? prev[12] : 'Normal', // M : Type de fin
-        '',             // N : Gagnant
-        '', '', '', ''  // O..R : manches calculées
+        prev ? prev[12] : 6,  // M : Manches prévues (défaut 6)
+        prev ? prev[13] : 'Normal', // N : Type de fin
+        '',                // O : Gagnant
+        '', '', '', ''     // P..S : manches calculées
       ];
     });
 
     var maxRows = sheet.getMaxRows();
-    if (maxRows > 1) { sheet.getRange(2, 1, maxRows - 1, 18).clearContent(); }
-    sheet.getRange(2, 1, nRows, 18).setValues(rows);
+    if (maxRows > 1) { sheet.getRange(2, 1, maxRows - 1, 19).clearContent(); }
+    sheet.getRange(2, 1, nRows, 19).setValues(rows);
     sheet.getRange(2, 3, nRows, 1).setNumberFormat('yyyy-mm-dd');  // Jour
     sheet.getRange(2, 4, nRows, 1).setNumberFormat('HH:mm');       // Heure
 
@@ -893,7 +932,7 @@ function getGameResults(classe) {
   var last = sheet.getLastRow();
   if (last < 2) { return games; }
 
-  var data = sheet.getRange(2, 1, last - 1, 18).getValues();
+  var data = sheet.getRange(2, 1, last - 1, 19).getValues();
   data.forEach(function (row, idx) {
     var pool        = parseInt(row[0], 10);
     var partie      = row[1];
@@ -904,7 +943,8 @@ function getGameResults(classe) {
     var localSel    = String(row[9]).trim();
     var manches     = parseInt(row[10], 10);
     var retraits    = row[11] === '' ? 0 : parseInt(row[11], 10);
-    var type        = String(row[12]).trim() || 'Normal';
+    var manchesPrevues = parseInt(row[12], 10);
+    var type        = String(row[13]).trim() || 'Normal';
 
     // Ignore les parties sans scores (résultats manquants).
     if (scoreA === '' || scoreB === '' || teamA === '' || teamB === '') {
@@ -917,6 +957,8 @@ function getGameResults(classe) {
     // Manches par défaut = 6 si non saisi (partie complète présumée).
     if (isNaN(manches) || manches < 1) { manches = TOTAL_INNINGS; }
     if (isNaN(retraits) || retraits < 0) { retraits = 0; }
+    // Manches réglementaires prévues : défaut 6 si non saisi.
+    if (isNaN(manchesPrevues) || manchesPrevues < 1) { manchesPrevues = TOTAL_INNINGS; }
 
     // L'équipe locale n'est connue qu'une fois la partie jouée (le registraire
     // l'indique en saisissant le score). Si elle n'est pas précisée, impossible
@@ -937,7 +979,7 @@ function getGameResults(classe) {
       }
     }
 
-    var inn = calculateInnings(scoreLocal, scoreVisiteur, manches, retraits, type, homeKnown);
+    var inn = calculateInnings(scoreLocal, scoreVisiteur, manches, retraits, type, homeKnown, manchesPrevues);
     var winner = (type === 'Forfait')
       ? (scoreLocal >= scoreVisiteur ? local : visiteur)   // forfait : le score indique le gagnant
       : (scoreLocal > scoreVisiteur ? local : (scoreVisiteur > scoreLocal ? visiteur : ''));
@@ -952,6 +994,7 @@ function getGameResults(classe) {
       scoreVisiteur: scoreVisiteur,
       manches: manches,
       retraits: retraits,
+      manchesPrevues: manchesPrevues,
       type: type,
       winner: winner,
       offLocal: inn.offLocal,
@@ -1020,10 +1063,14 @@ function isRowComplete(v) {
  *
  * @param {boolean} [homeKnown=true]  si faux (équipe locale non indiquée), on force
  *                  un résultat symétrique : impossible de savoir qui a joué en bas.
+ * @param {number}  [regulation=TOTAL_INNINGS]  nombre de manches réglementaires PRÉVUES
+ *                  pour cette partie (6 en 13U normal, 5 lors d'une journée écourtée par la
+ *                  pluie, etc.). Sert au crédit défensif du gagnant d'un Mercy / Forfait.
  * @return {{offLocal:number, defLocal:number, offVisiteur:number, defVisiteur:number}}
  */
-function calculateInnings(scoreLocal, scoreVisiteur, manchesCompletes, retraitsEnFin, typeFin, homeKnown) {
+function calculateInnings(scoreLocal, scoreVisiteur, manchesCompletes, retraitsEnFin, typeFin, homeKnown, regulation) {
   if (homeKnown === undefined) { homeKnown = true; }
+  if (regulation === undefined || !regulation) { regulation = TOTAL_INNINGS; }
   var N = manchesCompletes;
   var H = retraitsEnFin;
   var frac = H / 3;                 // fraction de manche (0, 1/3, 2/3)
@@ -1033,41 +1080,44 @@ function calculateInnings(scoreLocal, scoreVisiteur, manchesCompletes, retraitsE
   if (typeFin === 'Forfait') {
     if (scoreLocal >= scoreVisiteur) {
       // Locale gagne par forfait.
-      return { offLocal: 6, defLocal: 6, offVisiteur: 0, defVisiteur: 0 };
+      return { offLocal: regulation, defLocal: regulation, offVisiteur: 0, defVisiteur: 0 };
     } else {
       // Visiteur gagne par forfait.
-      return { offLocal: 0, defLocal: 0, offVisiteur: 6, defVisiteur: 6 };
+      return { offLocal: 0, defLocal: 0, offVisiteur: regulation, defVisiteur: regulation };
     }
   }
 
-  // Détermine si la locale a gagné dans le bas (walk-off). Impossible à
-  // déterminer si l'équipe locale n'a pas été indiquée (homeKnown = false).
-  var localeWinsBottom = homeKnown && (scoreLocal > scoreVisiteur) && (N < TOTAL_INNINGS || H > 0);
+  // Détermine si la locale a gagné en n'ayant PAS complété sa dernière manche au bâton.
+  // Dès que la locale gagne, c'est forcément le cas : soit elle menait déjà et n'est pas
+  // retournée frapper en bas de la dernière manche, soit elle a marqué le point gagnant
+  // avant ses 3 retraits (walk-off). Dans les deux cas → fractions (partial). On ne peut
+  // le déterminer que si l'équipe locale a été indiquée (homeKnown = true).
+  var localeWinsBottom = homeKnown && (scoreLocal > scoreVisiteur);
 
   // -------- MERCY --------
   if (typeFin === 'Mercy') {
     if (scoreLocal > scoreVisiteur) {
-      // Locale gagne par mercy.
+      // Locale gagne par mercy : elle n'a pas complété sa dernière manche au bâton
+      // (localeWinsBottom toujours vrai ici quand homeKnown). Locale (gagnante) :
+      // offensive partielle, défensive = manches réglementaires prévues. Visiteur
+      // (perdant) : offensive = N, défensive = partielle.
       if (localeWinsBottom) {
-        // Mercy déclenché dans le bas : locale n'a pas terminé sa manche offensive.
-        // Locale (gagnante) : offensive partielle, défensive = 6.
-        // Visiteur (perdant) : offensive = N, défensive = partielle.
         return {
-          offLocal: partial, defLocal: TOTAL_INNINGS,
+          offLocal: partial, defLocal: regulation,
           offVisiteur: N,    defVisiteur: partial
         };
       } else {
-        // Mercy déclenché en haut / fin de manche complète, locale gagnante.
+        // Repli (équipe locale non indiquée) : pas de fraction possible.
         return {
-          offLocal: N, defLocal: TOTAL_INNINGS,
+          offLocal: N, defLocal: regulation,
           offVisiteur: N, defVisiteur: N
         };
       }
     } else {
-      // Visiteur gagne par mercy : visiteur gagnant (6 def), locale perdante.
+      // Visiteur gagne par mercy : visiteur gagnant (def = réglementaire), locale perdante.
       return {
         offLocal: N, defLocal: N,
-        offVisiteur: N, defVisiteur: TOTAL_INNINGS
+        offVisiteur: N, defVisiteur: regulation
       };
     }
   }
@@ -1133,8 +1183,8 @@ function writeCalculatedResults(ss, classe, games) {
 }
 
 /**
- * Écrit (ou efface) les colonnes calculées N..R (14..18) d'UNE ligne de Résultats.
- * Source unique du mapping N..R, partagée par writeCalculatedResults (refresh
+ * Écrit (ou efface) les colonnes calculées O..S (15..19) d'UNE ligne de Résultats.
+ * Source unique du mapping O..S, partagée par writeCalculatedResults (refresh
  * complet via le menu) et handleResultEdit (écriture ciblée de la ligne saisie).
  *
  * @param {Sheet}  sheet     feuille Résultats A/B
@@ -1143,14 +1193,14 @@ function writeCalculatedResults(ss, classe, games) {
  */
 function writeRowCalc(sheet, rowIndex, game) {
   if (game) {
-    sheet.getRange(rowIndex, 14).setValue(game.winner);                       // N : Gagnant
-    sheet.getRange(rowIndex, 15).setValue(formatFraction(game.offLocal));     // O
-    sheet.getRange(rowIndex, 16).setValue(formatFraction(game.defLocal));     // P
-    sheet.getRange(rowIndex, 17).setValue(formatFraction(game.offVisiteur));  // Q
-    sheet.getRange(rowIndex, 18).setValue(formatFraction(game.defVisiteur));  // R
+    sheet.getRange(rowIndex, 15).setValue(game.winner);                       // O : Gagnant
+    sheet.getRange(rowIndex, 16).setValue(formatFraction(game.offLocal));     // P
+    sheet.getRange(rowIndex, 17).setValue(formatFraction(game.defLocal));     // Q
+    sheet.getRange(rowIndex, 18).setValue(formatFraction(game.offVisiteur));  // R
+    sheet.getRange(rowIndex, 19).setValue(formatFraction(game.defVisiteur));  // S
   } else {
     // Partie sans résultat : efface les calculs.
-    sheet.getRange(rowIndex, 14, 1, 5).clearContent();
+    sheet.getRange(rowIndex, 15, 1, 5).clearContent();
   }
 }
 
@@ -1751,15 +1801,17 @@ function clearResults() {
     var last = sheet.getLastRow();
     if (last < 2) { return; }
     var n = last - 1;
-    // Efface H, I (scores), J (Équipe Locale), K, L (manches/retraits), N..R (calculs).
+    // Efface H, I (scores), J (Équipe Locale), K, L (manches/retraits), O..S (calculs).
     sheet.getRange(2, 8, n, 2).clearContent();    // H, I
     sheet.getRange(2, 10, n, 1).clearContent();   // J : Équipe Locale
     sheet.getRange(2, 11, n, 2).clearContent();   // K, L
-    sheet.getRange(2, 14, n, 5).clearContent();   // N..R
-    // Réinitialise le type de fin à "Normal".
+    sheet.getRange(2, 15, n, 5).clearContent();   // O..S : calculs
+    // Réinitialise Manches prévues à 6 et Type de fin à "Normal".
+    var regCol = [];
     var normalCol = [];
-    for (var i = 0; i < n; i++) { normalCol.push(['Normal']); }
-    sheet.getRange(2, 13, n, 1).setValues(normalCol);  // M : Type de fin
+    for (var i = 0; i < n; i++) { regCol.push([6]); normalCol.push(['Normal']); }
+    sheet.getRange(2, 13, n, 1).setValues(regCol);     // M : Manches prévues
+    sheet.getRange(2, 14, n, 1).setValues(normalCol);  // N : Type de fin
   });
 
   ui.alert('Résultats effacés.');
@@ -1820,6 +1872,9 @@ function simulateMatchResults() {
   // (Équipe 1 = équipe locale pour ces données fictives, écrite ci-dessous dans J.)
   // Les 18 lignes sont appliquées par position : Pool1 M1-M6, Pool2 M1-M6, Pool3 M1-M6
   // (correspond à l'ordre des matchs tel qu'écrit par "Générer les matchs").
+  // "Manches prévues" (col M) est forcée à 6 à l'écriture (toutes ces parties fictives
+  // sont prévues sur 6 manches) : les lignes Mercy (K=4/5) testent ainsi le crédit
+  // défensif réglementaire de 6 manches au gagnant.
 
   var DATA = {
     'A': [
@@ -1896,11 +1951,12 @@ function simulateMatchResults() {
     // Met à jour la validation manches si nécessaire.
     sheet.getRange(2, 11, n, 1).setDataValidation(inningRule);
 
-    // Écrit les scores (H, I) et paramètres de fin (K, L, M) en deux blocs.
+    // Écrit les scores (H, I) et paramètres de fin (K, L, M, N) en deux blocs.
+    // Manches prévues (M) = 6 pour toutes les données fictives.
     var scores = rows.map(function (r) { return [r[0], r[1]]; });
-    var params = rows.map(function (r) { return [r[2], r[3], r[4]]; });
+    var params = rows.map(function (r) { return [r[2], r[3], 6, r[4]]; });
     sheet.getRange(2, 8, n, 2).setValues(scores);   // H, I
-    sheet.getRange(2, 11, n, 3).setValues(params);  // K, L, M
+    sheet.getRange(2, 11, n, 4).setValues(params);  // K, L, M, N
 
     // Équipe Locale (J) = Équipe 1 pour ces données fictives (correspond au
     // scénario narratif des commentaires ci-dessus, ex. "T0 vs T1 → ... walk-off").
