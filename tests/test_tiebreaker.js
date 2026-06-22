@@ -109,6 +109,63 @@ checks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test de régression : exemple officiel du PDF (Note 2, Art. 42.11) -------
+// QC bat RS 6-3, CN bat QC 6-4, RS bat CN 10-8. Égalité à 3 (chacune 1-1).
+//   P1 (tête-à-tête V-D) : tous à 0 -> pas de séparation.
+//   P2 (RA/DefInn) : QC 9/12=0.75 isolé 1er ; RS 14/12 et CN 14/12 à égalité.
+//   P3 (RS/OffInn) sur la portée ORIGINALE (3 équipes) : RS 13/12 < CN 14/12
+//     -> CN 2e, RS 3e. Résultat attendu : QC > CN > RS.
+// Le bug Note 2 (recommencer à P1 sur {RS,CN}) donnerait QC > RS > CN, car RS a
+// battu CN en tête-à-tête.
+var pdfGames = [
+  game(1, 'QC', 'RS',  6, 3),
+  game(1, 'CN', 'QC',  6, 4),
+  game(1, 'RS', 'CN', 10, 8)
+];
+var pdfOrder = orderTeams(['QC', 'RS', 'CN'], pdfGames, false);
+
+console.log('\n--- Vérification : régression PDF (Note 2) ---');
+console.log('  Ordre produit : ' + pdfOrder.join(' > ') + ' (attendu : QC > CN > RS)');
+var pdfOk = pdfOrder.join(' > ') === 'QC > CN > RS';
+console.log((pdfOk ? '  OK   ' : '  ÉCHEC') + ' : QC > CN > RS (continue à P3, ne recommence pas à P1)');
+if (!pdfOk) { allOk = false; }
+
+// --- Test : Priorité 4 (manuelle) après épuisement des ratios P2/P3 -----------
+// Art. 42.11, Note 2 : on CONTINUE aux priorités suivantes (pas de retour à la
+// P1) ; une fois P2 et P3 épuisées sans départage, la priorité suivante est la
+// P4 (« manches avec l'avance au pointage »), NON automatisable (feuille de
+// pointage) -> drapeau de vérification manuelle.
+//
+// 4 équipes à égalité. P1 (sur les 4) sépare {B,C} (fiche 2-1) au-dessus de
+// {A,D} (fiche 1-2). {B,C} CONTINUE à P2/P3 sur la portée des 4 : B et C ont des
+// ratios défensif ET offensif IDENTIQUES (RA 8, RS 13, 18 manches chacun) -> P2
+// et P3 ne séparent rien -> P4 -> drapeau manuel + ordre alphabétique provisoire.
+// {A,D} restent séparables par P2 (D RA 11 < A RA 13) -> D avant A.
+//
+// Le duel direct est gagné par C (5-3) : l'ANCIEN code bogué (retour-à-P1
+// re-restreint au duel) aurait donné C > B SANS drapeau. Le code correct donne
+// B > C (alphabétique) AVEC drapeau. Les deux assertions ensemble le prouvent.
+var p4Games = [
+  game(1, 'C', 'B', 5, 3), // C bat B  <- duel direct (NON consulté : on s'arrête à P4)
+  game(1, 'B', 'A', 6, 1), // B bat A
+  game(1, 'B', 'D', 4, 2), // B bat D
+  game(1, 'C', 'A', 6, 2), // C bat A
+  game(1, 'D', 'C', 3, 2), // D bat C
+  game(1, 'A', 'D', 5, 1)  // A bat D
+];
+var p4Order = orderTeams(['A', 'B', 'C', 'D'], p4Games, false);
+
+console.log('\n--- Vérification : Priorité 4 manuelle (Note 2) ---');
+console.log('  Ordre produit : ' + p4Order.join(' > ') + ' (attendu : B > C > D > A)');
+console.log('  __needsManualCheck : ' + (p4Order.__needsManualCheck === true));
+var p4OrderOk = p4Order.join(' > ') === 'B > C > D > A';
+var p4FlagOk  = p4Order.__needsManualCheck === true;
+console.log((p4OrderOk ? '  OK   ' : '  ÉCHEC') +
+            ' : B > C alphabétique (PAS le duel C>B) ; D > A par P2');
+console.log((p4FlagOk ? '  OK   ' : '  ÉCHEC') +
+            ' : drapeau vérification manuelle levé (P4 atteinte, pas de retour à P1)');
+if (!p4OrderOk || !p4FlagOk) { allOk = false; }
+
 // --- Test de isRowComplete (gate du recalcul live onEdit) -------------------
 // Colonnes H..M : scoreA, scoreB, local, manches, retraits, type.
 function rc(scoreA, scoreB, local, manches, retraits, type) {

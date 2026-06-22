@@ -1240,8 +1240,9 @@ function calculateStep(teams, games, useAllGames) {
 
 /**
  * Ordonne une liste d'équipes en appliquant le bris d'égalité récursif.
- * Sépare d'abord par fiche V-D globale (sur l'ensemble pertinent), puis pour
- * chaque groupe à égalité, applique tiebreaker().
+ * Délègue à tiebreaker(), qui démarre une passe à la Priorité 1 et applique
+ * les priorités de l'Art. 42.11 (en continuant après une séparation partielle,
+ * Note 2).
  *
  * @param {Array}  teams
  * @param {Array}  games        parties disponibles
@@ -1256,7 +1257,7 @@ function orderTeams(teams, games, useAllGames) {
 }
 
 /**
- * Résout récursivement les égalités selon l'Art. 42.11.
+ * Démarre une PASSE de bris d'égalité à la Priorité 1, Art. 42.11.
  *
  * Priorités :
  *   1. Fiche tête-à-tête (V-D dans les parties entre équipes à égalité)
@@ -1264,9 +1265,12 @@ function orderTeams(teams, games, useAllGames) {
  *   3. Ratio RS/OffInn (le plus haut gagne)
  *   4. Manches en avance (avertissement : vérification manuelle requise)
  *
- * Résolution partielle : si une priorité sépare le groupe en sous-groupes,
- * chaque sous-groupe encore à égalité est re-traité depuis la Priorité 1,
- * en recalculant sur ses propres parties directes.
+ * Fixe la PORTÉE des parties pour toute la passe, puis délègue à
+ * applyPriorities() qui applique les priorités sur cette même portée.
+ * - Étape A (useAllGames=false) : portée = parties jouées strictement entre
+ *   les équipes à égalité (tête-à-tête).
+ * - Étapes B/C (useAllGames=true) : portée = toutes les parties de pool
+ *   impliquant l'une des équipes à égalité.
  *
  * @param {Array}  tiedTeams    équipes à départager
  * @param {Array}  games        parties disponibles
@@ -1274,79 +1278,99 @@ function orderTeams(teams, games, useAllGames) {
  * @return {Array} équipes ordonnées (meilleure en tête)
  */
 function tiebreaker(tiedTeams, games, useAllGames) {
-  if (tiedTeams.length === 1) { return tiedTeams.slice(); }
+  if (tiedTeams.length <= 1) { return tiedTeams.slice(); }
 
-  // Sélectionne les parties pertinentes pour le calcul des ratios.
-  // - Étape A (useAllGames=false) : uniquement les parties ENTRE équipes à égalité.
-  // - Étapes B/C (useAllGames=true) : toutes les parties de pool de chaque équipe.
+  // Portée fixée pour CETTE passe (Priorités 1 à 3 calculées dessus).
   var relevantGames = useAllGames
     ? games.filter(function (g) {
-        // On garde toutes les parties impliquant l'une des équipes à égalité.
         return tiedTeams.indexOf(g.local) !== -1 || tiedTeams.indexOf(g.visiteur) !== -1;
       })
     : headToHeadGames(tiedTeams, games);
 
-  // ---------- PRIORITÉ 1 : fiche tête-à-tête ----------
-  // Pour A : fiche dans les parties entre équipes à égalité.
-  // Pour B/C : ces équipes ne se sont jamais affrontées -> fiche = toutes parties.
-  var h2hGames = useAllGames ? relevantGames : headToHeadGames(tiedTeams, games);
-  var groups = groupByMetric(tiedTeams, function (team) {
-    var st = computeTeamStats(team, h2hGames, useAllGames /* exclure forfait pour B/C */);
-    // Différentiel V-D : plus élevé = meilleur. On groupe par valeur identique.
-    return st.v - st.d;
-  }, true /* descending */);
-
-  if (groups.length > 1) {
-    return resolveGroups(groups, games, useAllGames);
-  }
-
-  // ---------- PRIORITÉ 2 : ratio RA/DefInn (le plus bas gagne) ----------
-  groups = groupByMetric(tiedTeams, function (team) {
-    var st = computeTeamStats(team, relevantGames, useAllGames);
-    return st.raRatio;
-  }, false /* ascending : plus bas = meilleur */);
-
-  if (groups.length > 1) {
-    return resolveGroups(groups, games, useAllGames);
-  }
-
-  // ---------- PRIORITÉ 3 : ratio RS/OffInn (le plus haut gagne) ----------
-  groups = groupByMetric(tiedTeams, function (team) {
-    var st = computeTeamStats(team, relevantGames, useAllGames);
-    return st.rsRatio;
-  }, true /* descending : plus haut = meilleur */);
-
-  if (groups.length > 1) {
-    return resolveGroups(groups, games, useAllGames);
-  }
-
-  // ---------- PRIORITÉ 4 : manches en avance (vérification manuelle) ----------
-  // Données par manche non disponibles automatiquement.
-  // On marque les équipes et on conserve l'ordre alphabétique stable.
-  Logger.log('AVERTISSEMENT : Priorité 4 atteinte pour : ' + tiedTeams.join(', ') +
-             '. Vérification manuelle requise - Voir feuille Manches_Détail.');
-  var warned = tiedTeams.slice().sort();
-  warned.__needsManualCheck = true;
-  return warned;
+  return applyPriorities(tiedTeams, relevantGames, useAllGames, 1);
 }
 
 /**
- * Applique les sous-groupes : pour chaque sous-groupe encore à égalité (>1 équipe),
- * relance tiebreaker récursivement sur ses parties directes.
+ * Applique les priorités à partir de `startP` sur une portée de parties FIXÉE
+ * (`relevantGames`) — cœur de la Note 2 de l'Art. 42.11.
+ *
+ * Note 2 : « Lors d'une égalité multiple résolue en partie : on continue avec les
+ * priorités restantes pour les équipes encore à égalité, avant de recommencer à
+ * la priorité 1. »
+ *
+ * Concrètement :
+ *  - Quand une priorité sépare le groupe partiellement, chaque sous-groupe
+ *    encore à égalité CONTINUE à la priorité SUIVANTE (startP+1) sur la MÊME
+ *    portée — on ne recommence PAS à la Priorité 1, et on ne re-restreint PAS
+ *    la portée au sous-groupe.
+ *  - Épuisement des priorités automatisables : si un sous-groupe (ou le groupe
+ *    initial) épuise les priorités startP..3 (P1 fiche, P2 RA, P3 RS) sans se
+ *    séparer, la priorité suivante est la PRIORITÉ 4 (« manches avec l'avance au
+ *    pointage »), qui exige la feuille de pointage → NON automatisable → on lève
+ *    le drapeau de vérification manuelle (__needsManualCheck) et on conserve un
+ *    ordre alphabétique provisoire.
+ *  - Le « recommencer à la priorité 1 » de la Note 2 n'intervient qu'APRÈS la
+ *    Priorité 4 : il est donc hors de portée du code (résolu manuellement par le
+ *    marqueur via la feuille Manches_Détail).
+ *
+ * Terminaison : la « continuation » réduit toujours strictement la taille du
+ * groupe ; sinon on s'arrête au drapeau Priorité 4.
+ *
+ * @param {Array}   group        équipes à égalité (sous-ensemble de la passe)
+ * @param {Array}   relevantGames portée fixée pour la passe (P1..P3 dessus)
+ * @param {boolean} useAllGames  true = B/C, false = A
+ * @param {number}  startP       priorité de départ (1..3)
+ * @return {Array} équipes ordonnées (meilleure en tête)
  */
-function resolveGroups(groups, games, useAllGames) {
-  var ordered = [];
-  groups.forEach(function (group) {
-    if (group.length === 1) {
-      ordered.push(group[0]);
-    } else {
-      // Sous-égalité : recommence depuis la Priorité 1 sur ce sous-groupe.
-      // Pour A on recalcule sur leurs parties directes ; pour B/C on garde toutes.
-      var sub = tiebreaker(group, games, useAllGames);
-      sub.forEach(function (t) { ordered.push(t); });
+function applyPriorities(group, relevantGames, useAllGames, startP) {
+  if (group.length <= 1) { return group.slice(); }
+
+  // Métriques par priorité — TOUTES calculées sur la même `relevantGames`.
+  //   P1 : différentiel V-D (plus haut = meilleur)
+  //   P2 : ratio RA/DefInn  (plus bas  = meilleur)
+  //   P3 : ratio RS/OffInn  (plus haut = meilleur)
+  var priorities = [
+    { metric: function (team) {
+        var st = computeTeamStats(team, relevantGames, useAllGames);
+        return st.v - st.d;
+      }, descending: true },
+    { metric: function (team) {
+        return computeTeamStats(team, relevantGames, useAllGames).raRatio;
+      }, descending: false },
+    { metric: function (team) {
+        return computeTeamStats(team, relevantGames, useAllGames).rsRatio;
+      }, descending: true }
+  ];
+
+  for (var i = startP; i <= 3; i++) {
+    var groups = groupByMetric(group, priorities[i - 1].metric, priorities[i - 1].descending);
+    if (groups.length > 1) {
+      // Séparation (au moins partielle) : on place les sous-groupes dans l'ordre
+      // et on CONTINUE à la priorité suivante (i+1) sur la même portée pour ceux
+      // encore à égalité (Note 2).
+      var ordered = [];
+      var manual = false;
+      groups.forEach(function (sg) {
+        var sub = applyPriorities(sg, relevantGames, useAllGames, i + 1);
+        if (sub.__needsManualCheck) { manual = true; }
+        sub.forEach(function (t) { ordered.push(t); });
+      });
+      if (manual) { ordered.__needsManualCheck = true; }
+      return ordered;
     }
-  });
-  return ordered;
+  }
+
+  // Priorités startP..3 (ratios automatisables) épuisées sans séparation.
+  // La priorité suivante est la PRIORITÉ 4 (« manches avec l'avance au pointage »,
+  // Art. 42.11) : elle exige la feuille de pointage -> non automatisable. On lève
+  // le drapeau de vérification manuelle et on conserve un ordre alphabétique
+  // provisoire. (Le « recommencer à la priorité 1 » de la Note 2 vient APRÈS la
+  // Priorité 4 -> hors de portée du code, résolu à la main.)
+  Logger.log('AVERTISSEMENT : Priorité 4 atteinte pour : ' + group.join(', ') +
+             '. Vérification manuelle requise - Voir feuille Manches_Détail.');
+  var warned = group.slice().sort();
+  warned.__needsManualCheck = true;
+  return warned;
 }
 
 /**
