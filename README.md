@@ -14,8 +14,9 @@ colle tel quel dans l'éditeur Apps Script lié à une feuille Google.
   propre à l'ABMR, produit par le comité du tournoi) dans l'onglet `Configuration` ;
   tout le reste se régénère à partir de là.
 - **Saisie des résultats** dans `Résultats A / B` avec scores, équipe locale, manches
-  jouées, manches prévues (longueur réglementaire, 5 ou 6) et type de fin (Normal / Mercy /
-  Forfait / Supplémentaires).
+  jouées, manches prévues (longueur réglementaire, 5 ou 6), type de fin (Normal / Mercy /
+  Forfait / Supplémentaires) et, pour une partie en supplémentaires, le pointage
+  réglementaire (nul) atteint avant les manches supplémentaires.
 - **Calcul des manches fractionnaires** (⅓, ⅔) pour les fins hâtives (walk-off, mercy) et
   les victoires locales (la locale ne complète pas sa dernière manche au bâton), nécessaire
   à la justesse des ratios de bris d'égalité. Le crédit défensif d'un Mercy suit le nombre
@@ -24,6 +25,9 @@ colle tel quel dans l'éditeur Apps Script lié à une feuille Google.
 - **Bris d'égalité récursif à trois niveaux** (Art. 42.11) : tête-à-tête → ratio
   RA/manches défensives → ratio RS/manches offensives → manches en avance
   (vérification manuelle signalée).
+- **Note 4 (manches supplémentaires) automatique** — les points des manches
+  supplémentaires sont exclus des ratios de bris d'égalité dès que le pointage
+  réglementaire (col. O) est saisi ; les PP/PC affichés restent les totaux réels.
 - **Mise à jour des classements EN DIRECT et multi-postes** — dès qu'une partie est
   entrée au complet, le classement se met à jour pour tous, y compris les responsables
   qui regardent les onglets `Classements`. Conçu pour 2-3 personnes saisissant en

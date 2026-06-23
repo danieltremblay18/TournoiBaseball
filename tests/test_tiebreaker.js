@@ -167,10 +167,11 @@ console.log((p4FlagOk ? '  OK   ' : '  ÉCHEC') +
 if (!p4OrderOk || !p4FlagOk) { allOk = false; }
 
 // --- Test de isRowComplete (gate du recalcul live onEdit) -------------------
-// Colonnes H..M : scoreA, scoreB, local, manches, retraits, type.
-function rc(scoreA, scoreB, local, manches, retraits, type) {
+// Colonnes H..O : scoreA, scoreB, local, manches, retraits, type, suppTie.
+function rc(scoreA, scoreB, local, manches, retraits, type, suppTie) {
   return isRowComplete({ scoreA: scoreA, scoreB: scoreB, local: local,
-                         manches: manches, retraits: retraits, type: type });
+                         manches: manches, retraits: retraits, type: type,
+                         suppTie: suppTie });
 }
 
 var rowChecks = [
@@ -197,7 +198,16 @@ var rowChecks = [
    rc(5, 3, '', 6, 0, 'Normal') === false],
   // Type de fin manquant -> incomplète (on ne sait pas si c'est un forfait).
   ['Type manquant = incomplète',
-   rc(5, 3, 'Kamouraska', 6, 0, '') === false]
+   rc(5, 3, 'Kamouraska', 6, 0, '') === false],
+  // Supplémentaires AVEC pointage régl. (col O) -> complète.
+  ['Suppl. avec pointage régl. = complète',
+   rc(7, 5, 'Kamouraska', 7, 0, 'Supplémentaires', 5) === true],
+  // Supplémentaires SANS pointage régl. -> incomplète (Note 4 non applicable).
+  ['Suppl. sans pointage régl. = incomplète',
+   rc(7, 5, 'Kamouraska', 7, 0, 'Supplémentaires', '') === false],
+  // Pointage régl. = 0 doit compter comme REMPLI (nul 0-0 après le réglementaire).
+  ['Suppl. pointage régl. 0 = complète',
+   rc(2, 1, 'Kamouraska', 7, 0, 'Supplémentaires', 0) === true]
 ];
 
 console.log('\n--- Vérifications : isRowComplete (gate onEdit) ---');
@@ -258,8 +268,44 @@ innChecks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test Note 4 : exclusion des manches supplémentaires du ratio ------------
+// Partie allée en supplémentaires : score FINAL 7-5 (la locale gagne en suppl.),
+// mais NULLE 5-5 au terme des 6 manches réglementaires. computeTeamStats doit :
+//  - afficher PP/PC = totaux RÉELS (7 et 5, suppl. incluses) ;
+//  - calculer les ratios sur les manches RÉGULIÈRES seulement (5 marqués / 5
+//    alloués sur 6 manches → 5/6), surtout PAS sur le score final (7/7 et 5/7).
+// C'est exactement la Note 4 de l'Art. 42.11.
+function suppGame(local, vis, finalLoc, finalVis, tie, reg) {
+  return {
+    pool: 1, local: local, visiteur: vis,
+    scoreLocal: finalLoc, scoreVisiteur: finalVis,
+    winner: finalLoc > finalVis ? local : vis, type: 'Supplémentaires',
+    // Manches RÉELLES (suppl. incluses) — journal Résultats, jamais le ratio.
+    offLocal: 7, defLocal: 7, offVisiteur: 7, defVisiteur: 7,
+    // Base RÉGULIÈRE (Note 4) : pointage nul X sur `reg` manches, pour les deux.
+    regRsLocal: tie, regRsVisiteur: tie,
+    regOffLocal: reg, regDefLocal: reg, regOffVisiteur: reg, regDefVisiteur: reg,
+    suppNeedsTie: false
+  };
+}
+var sgStats = computeTeamStats('X', [suppGame('X', 'Y', 7, 5, 5, 6)], false);
+var note4Checks = [
+  ['PP affiché = 7 (score final réel)',          sgStats.rs === 7],
+  ['PC affiché = 5 (score final réel)',          sgStats.ra === 5],
+  ['RO = 5/6 (régulier, PAS 7/7 du score final)', approx(sgStats.rsRatio, 5 / 6)],
+  ['RD = 5/6 (régulier, PAS 5/7 du score final)', approx(sgStats.raRatio, 5 / 6)],
+  ['MO du ratio = 6 (régulières, PAS 7 réelles)', approx(sgStats.offInn, 6)],
+  ['MD du ratio = 6 (régulières, PAS 7 réelles)', approx(sgStats.defInn, 6)]
+];
+
+console.log('\n--- Vérifications : Note 4 (exclusion des suppl. du ratio) ---');
+note4Checks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);
 }
-console.log('\nSUCCÈS : bris d\'égalité (Priorité 2) + isRowComplete + gameIsSupp OK.');
+console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 OK.');
