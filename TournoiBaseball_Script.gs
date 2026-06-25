@@ -1779,6 +1779,41 @@ function decisiveCriterion(hi, lo) {
 }
 
 /**
+ * Texte d'info-bulle (setNote) détaillant le CALCUL du ratio défensif d'une
+ * équipe, pour survol de la cellule RD : « PC régl. ÷ MD = ratio ». Numérateur
+ * et dénominateur en base RÉGULIÈRE (manches supplémentaires exclues, Note 4),
+ * donc ce sont EXACTEMENT les valeurs utilisées par le bris d'égalité.
+ * @param {Object} s  stats issues de computeTeamStats
+ * @return {string}
+ */
+function rdCalcNote(s) {
+  if (!(s.defInn > 0)) {
+    return 'RD (ratio défensif) — indisponible : aucune manche défensive comptabilisée.';
+  }
+  return 'RD = points contre (manches régulières) ÷ manches défensives = ' +
+    s.raNum + ' ÷ ' + formatFraction(s.defInn) + ' = ' + round3(s.raRatio) +
+    '. Le plus BAS est le meilleur (Priorité 2, Art. 42.11). Manches ' +
+    'supplémentaires exclues (Note 4).';
+}
+
+/**
+ * Texte d'info-bulle (setNote) détaillant le CALCUL du ratio offensif d'une
+ * équipe, pour survol de la cellule RO : « PP régl. ÷ MO = ratio » (base
+ * régulière, Note 4). Voir rdCalcNote.
+ * @param {Object} s  stats issues de computeTeamStats
+ * @return {string}
+ */
+function roCalcNote(s) {
+  if (!(s.offInn > 0)) {
+    return 'RO (ratio offensif) — indisponible : aucune manche offensive comptabilisée.';
+  }
+  return 'RO = points pour (manches régulières) ÷ manches offensives = ' +
+    s.rsNum + ' ÷ ' + formatFraction(s.offInn) + ' = ' + round3(s.rsRatio) +
+    '. Le plus HAUT est le meilleur (Priorité 3, Art. 42.11). Manches ' +
+    'supplémentaires exclues (Note 4).';
+}
+
+/**
  * Écrit, À DROITE d'une section de classement, le DÉTAIL DES BRIS D'ÉGALITÉ :
  * pour chaque groupe d'équipes à fiche V-D identique (sur la portée du bris),
  * montre les stats RÉELLEMENT utilisées par le moteur (RD/RO en base régulière —
@@ -1869,6 +1904,9 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
       ]]);
       sheet.getRange(row, c0, 1, n).setBackground(COLOR_CALC).setWrap(true)
         .setVerticalAlignment('top');
+      // Calcul détaillé au survol des cellules RD / RO.
+      sheet.getRange(row, c0 + 2).setNote(rdCalcNote(s));
+      sheet.getRange(row, c0 + 3).setNote(roCalcNote(s));
       row++;
     });
   });
@@ -1919,6 +1957,10 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
       raRatioDisplay, rsRatioDisplay, advancement, ''
     ];
     sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
+
+    // Calcul détaillé au survol des cellules RD (col. 10) / RO (col. 11).
+    sheet.getRange(row, 10).setNote(rdCalcNote(s));
+    sheet.getRange(row, 11).setNote(roCalcNote(s));
 
     // Couleur selon le rang (1er = vert, 2e = bleu clair).
     if (s.rank === 1) {
@@ -2027,6 +2069,10 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
       st.rs, st.ra, note, ''
     ];
     sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
+
+    // Calcul détaillé au survol des cellules RD (col. 6) / RO (col. 7).
+    sheet.getRange(row, 6).setNote(rdCalcNote(st));
+    sheet.getRange(row, 7).setNote(roCalcNote(st));
 
     // Couleur : positions qualificatives en vert (Étape C) ou bleu (Étape B 1ère place).
     if (basePosition === 1) {
