@@ -1632,8 +1632,10 @@ function buildStandingsSheet(ss, classe, games) {
   // -------- RÉCAPITULATIF DEMI-FINALES --------
   writeSemifinalSummary(sheet, row, classe, orderedFirsts, orderedSeconds);
 
-  // Largeurs de colonnes (13 colonnes).
-  var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 30];
+  // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-19 =
+  // bloc « bris d'égalité » à droite (Équipe, V-D, RD, RO, Critère décisif).
+  var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 30,
+                20, 160, 50, 65, 65, 175];
   for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
   sheet.setFrozenRows(1);
 }
@@ -1701,6 +1703,151 @@ function applyHeaderNotes(sheet, headerRow, notesByCol) {
  */
 function gameIsSupp(g) {
   return g && g.type === 'Supplémentaires';
+}
+
+// Première colonne du bloc « bris d'égalité » écrit À DROITE des classements.
+// (Col. 13 = mince séparateur du tableau de gauche ; col. 14 = espace.)
+var TIEBREAK_START_COL = 15;
+var TIEBREAK_NCOLS = 5;   // Équipe, V-D, RD, RO, Critère décisif
+
+// Info-bulle de la colonne « Critère décisif » du bloc bris.
+var TIEBREAK_CRIT_NOTE =
+  'CRITÈRE DÉCISIF — Critère de l\'Art. 42.11 qui classe cette équipe DEVANT celle ' +
+  'de la ligne suivante du même groupe à égalité. Au sein d\'un groupe les équipes ' +
+  'ont la MÊME fiche V-D (Priorité 1), donc le départage vient de : « RD » (ratio ' +
+  'défensif PC/MD, le plus bas gagne — Priorité 2), « RO » (ratio offensif PP/MO, ' +
+  'le plus haut gagne — Priorité 3) ou « Manuel (P4) » (manches avec l\'avance au ' +
+  'pointage — non automatisable, à régler via la feuille Manches_Détail). Les ratios ' +
+  'sont en base RÉGULIÈRE : les manches supplémentaires sont exclues (Note 4).';
+
+/**
+ * Détermine le critère (Art. 42.11) qui classe l'équipe `hi` (mieux classée)
+ * devant `lo`, en comparant leurs métriques dans l'ordre des priorités
+ * automatisables — exactement comme groupByMetric dans applyPriorities (P2 ratio
+ * défensif, puis P3 ratio offensif). Si ni l'un ni l'autre ne sépare : P4 manuelle.
+ *
+ * @param {Object} hi  stats de l'équipe la mieux classée (computeTeamStats)
+ * @param {Object} lo  stats de l'équipe juste en dessous
+ * @return {string} libellé du critère, avec les valeurs comparées
+ */
+function decisiveCriterion(hi, lo) {
+  // P2 : ratio défensif RA/DefInn — le plus BAS gagne.
+  if (!approxEqual(hi.raRatio, lo.raRatio)) {
+    return 'RD ' + round3(hi.raRatio) + ' < ' + round3(lo.raRatio);
+  }
+  // P3 : ratio offensif RS/OffInn — le plus HAUT gagne.
+  if (!approxEqual(hi.rsRatio, lo.rsRatio)) {
+    return 'RO ' + round3(hi.rsRatio) + ' > ' + round3(lo.rsRatio);
+  }
+  // Ratios épuisés sans départage -> Priorité 4 (manuelle).
+  return '⚠ Manuel (P4)';
+}
+
+/**
+ * Écrit, À DROITE d'une section de classement, le DÉTAIL DES BRIS D'ÉGALITÉ :
+ * pour chaque groupe d'équipes à fiche V-D identique (sur la portée du bris),
+ * montre les stats RÉELLEMENT utilisées par le moteur (RD/RO en base régulière —
+ * manches supplémentaires exclues, Note 4) et le critère de l'Art. 42.11 qui a
+ * départagé chaque équipe de celle classée juste au-dessus dans le même groupe.
+ *
+ * Pourquoi : le classement de gauche ne montre qu'un ordre trié ; quand deux
+ * équipes ont la même fiche, on ne voit pas QUEL critère a tranché ni que les
+ * supplémentaires sont exclues. Ce bloc rend le calcul transparent.
+ *
+ * Fidélité au moteur : la PORTÉE et les MÉTRIQUES sont calculées EXACTEMENT comme
+ * dans tiebreaker()/applyPriorities() — même headToHeadGames / filtre « impliquant »,
+ * et même appel computeTeamStats(team, portée, useAllGames). Pour un pool en
+ * round-robin la portée tête-à-tête = toutes les parties du pool, donc les RD/RO
+ * affichés ici COÏNCIDENT avec ceux du tableau de gauche (cohérence voulue).
+ *
+ * @param {Sheet}   sheet
+ * @param {number}  startRow     ligne du titre de la section de gauche (alignement)
+ * @param {Array}   teams        toutes les équipes classées dans la section
+ * @param {Array}   games        parties disponibles (pool pour A ; classe pour B/C)
+ * @param {Array}   orderedNames ordre final résolu (noms d'équipes, meilleur en tête)
+ * @param {boolean} useAllGames  true = Étapes B/C, false = Étape A (tête-à-tête)
+ * @return {number} dernière ligne écrite + 1
+ */
+function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllGames) {
+  var c0 = TIEBREAK_START_COL;
+  var n  = TIEBREAK_NCOLS;
+  var row = startRow;
+
+  // Portée fixée — IDENTIQUE à tiebreaker() pour la même passe.
+  var relevantGames = useAllGames
+    ? games.filter(function (g) {
+        return teams.indexOf(g.local) !== -1 || teams.indexOf(g.visiteur) !== -1;
+      })
+    : headToHeadGames(teams, games);
+
+  // Stats par équipe sur la portée (même appel qu'applyPriorities).
+  var statByTeam = {};
+  orderedNames.forEach(function (t) {
+    statByTeam[t] = computeTeamStats(t, relevantGames, useAllGames);
+  });
+  function vd(t) { return statByTeam[t].v - statByTeam[t].d; }
+
+  // Regroupe l'ordre final en « runs » de fiche V-D identique (Priorité 1). Ces
+  // équipes sont forcément consécutives (le tri primaire du moteur est la fiche).
+  var runs = [];
+  orderedNames.forEach(function (t) {
+    var last = runs[runs.length - 1];
+    if (last && vd(last[0]) === vd(t)) { last.push(t); }
+    else { runs.push([t]); }
+  });
+  var tieGroups = runs.filter(function (r) { return r.length >= 2; });
+
+  // Titre du bloc.
+  var scopeLabel = useAllGames ? 'toutes parties de pool' : 'tête-à-tête';
+  sheet.getRange(row, c0, 1, n).merge();
+  sheet.getRange(row, c0).setValue('BRIS D\'ÉGALITÉ (' + scopeLabel + ')')
+    .setFontWeight('bold').setBackground(COLOR_SECTION)
+    .setHorizontalAlignment('center');
+  row++;
+
+  // Pas d'égalité : message court (confirme que le moteur a vérifié).
+  if (tieGroups.length === 0) {
+    sheet.getRange(row, c0, 1, n).merge();
+    sheet.getRange(row, c0)
+      .setValue('Aucune égalité à départager — rangs établis par la fiche V-D.')
+      .setWrap(true).setBackground(COLOR_CALC).setVerticalAlignment('top');
+    return row + 1;
+  }
+
+  // En-têtes.
+  var headers = ['Équipe', 'V-D', 'RD', 'RO', 'Critère décisif'];
+  sheet.getRange(row, c0, 1, n).setValues([headers]);
+  styleHeader(sheet.getRange(row, c0, 1, n));
+  sheet.getRange(row, c0 + 4).setNote(TIEBREAK_CRIT_NOTE);
+  row++;
+
+  // Un sous-bloc par groupe à égalité (séparés par une ligne vide).
+  tieGroups.forEach(function (grp, gi) {
+    if (gi > 0) { row++; }   // espace entre groupes
+    grp.forEach(function (t, i) {
+      var s  = statByTeam[t];
+      var rd = (s.defInn > 0 && isFinite(s.raRatio)) ? s.raRatio.toFixed(3) : '—';
+      var ro = (s.offInn > 0) ? s.rsRatio.toFixed(3) : '—';
+      var crit = (i === 0) ? '—' : decisiveCriterion(statByTeam[grp[i - 1]], s);
+      sheet.getRange(row, c0, 1, n).setValues([[
+        t, s.v + '-' + s.d, rd, ro, crit
+      ]]);
+      sheet.getRange(row, c0, 1, n).setBackground(COLOR_CALC).setWrap(true)
+        .setVerticalAlignment('top');
+      row++;
+    });
+  });
+
+  // Note 4 si une partie de la portée est allée en supplémentaires.
+  if (relevantGames.some(gameIsSupp)) {
+    sheet.getRange(row, c0, 1, n).merge();
+    sheet.getRange(row, c0)
+      .setValue('ℹ Manches supplémentaires exclues des ratios RD/RO (Note 4, Art. 42.11).')
+      .setWrap(true).setBackground(COLOR_SECOND).setVerticalAlignment('top');
+    row++;
+  }
+
+  return row;
 }
 
 /**
@@ -1778,7 +1925,14 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
     row++;
   }
 
-  return row;
+  // Bloc « bris d'égalité » à droite (Étape A = tête-à-tête). Aligné sur le titre
+  // de la section ; on retourne le max des deux hauteurs pour éviter tout
+  // chevauchement vertical avec la section suivante.
+  var orderedNames = standings.map(function (s) { return s.team; });
+  var brisRow = writeTiebreakTable(sheet, startRow, orderedNames, poolGames,
+                                   orderedNames, false);
+
+  return Math.max(row, brisRow);
 }
 
 /**
@@ -1850,7 +2004,12 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
     row++;
   });
 
-  return row;
+  // Bloc « bris d'égalité » à droite (Étapes B/C = toutes les parties de pool de
+  // chaque équipe). Aligné sur le titre ; max des deux hauteurs.
+  var teamsArr = orderedTeams.slice();
+  var brisRow = writeTiebreakTable(sheet, startRow, teamsArr, games, teamsArr, true);
+
+  return Math.max(row, brisRow);
 }
 
 /**
