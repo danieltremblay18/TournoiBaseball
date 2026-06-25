@@ -733,6 +733,41 @@ function createHelpSheet(ss) {
     'exclut les supplémentaires.');
 
   addBlank();
+  addTitle('LIRE LES TABLEAUX DE BRIS D\'ÉGALITÉ (à droite des classements)', COLOR_SECTION);
+  addText(
+    'À DROITE de chaque classement (chaque pool, puis le classement des 1ers — Étape C — et ' +
+    'le meilleur 2e — Étape B), un bloc "BRIS D\'ÉGALITÉ" montre COMMENT le système a ' +
+    'départagé les équipes à fiche identique. Le classement de gauche ne montre qu\'un ordre ' +
+    'final ; ce bloc rend le calcul de l\'Art. 42.11 transparent.');
+  addText(
+    'N\'y figurent que les GROUPES d\'équipes réellement à égalité (même fiche victoires-' +
+    'défaites). Si aucun départage n\'était nécessaire, le bloc affiche simplement "Aucune ' +
+    'égalité à départager — rangs établis par la fiche V-D". Les groupes distincts sont ' +
+    'séparés par une ligne vide.');
+  addText(
+    'Chaque ligne montre l\'équipe, sa fiche V-D, ses ratios RD et RO, et surtout le CRITÈRE ' +
+    'DÉCISIF — le critère de l\'Art. 42.11 qui l\'a classée devant l\'équipe de la ligne ' +
+    'suivante du même groupe. Comme les équipes d\'un groupe ont la même fiche (Priorité 1), ' +
+    'le départage vient de :', true);
+  addText(
+    '• "RD x < y" — départagées par le ratio DÉFENSIF (Priorité 2 ; le plus bas gagne).  ' +
+    '• "RO x > y" — ratios défensifs égaux, départagées par le ratio OFFENSIF (Priorité 3 ; ' +
+    'le plus haut gagne).  • "⚠ Manuel (P4)" — ratios défensif ET offensif identiques : le ' +
+    'système ne peut pas trancher (Priorité 4 = "manches avec l\'avance au pointage", qui ' +
+    'exige la feuille de pointage). Réglez ce cas à la main via la feuille Manches_Détail.');
+  addText(
+    'Les RD/RO de ce bloc sont calculés exactement comme par le moteur de bris : sur la ' +
+    'portée TÊTE-À-TÊTE entre équipes à égalité pour un pool (Étape A), et sur TOUTES les ' +
+    'parties de pool de chaque équipe pour les Étapes B/C. Ils sont en base RÉGULIÈRE : si une ' +
+    'partie de la portée est allée en supplémentaires, un ℹ rappelle que les manches ' +
+    'supplémentaires sont exclues (Note 4 — voir la section ci-dessus).');
+  addText(
+    'Exemple de lecture : trois équipes 2-1 dans un pool. Le bloc montre la 1re sans critère ' +
+    '(meneuse), la 2e avec "RD 0.333 < 0.500" (elle a un meilleur ratio défensif), la 3e avec ' +
+    '"RO 1.083 > 0.900" (ratios défensifs égaux à la 2e, départagée au ratio offensif). On ' +
+    'voit ainsi d\'un coup d\'œil quel critère a fait la différence à chaque rang.');
+
+  addBlank();
   addTitle('MISE À JOUR AUTOMATIQUE DES CLASSEMENTS', COLOR_SECTION);
   addText(
     'Les classements se mettent à jour TOUT SEULS, en direct et pour tout le monde, dès ' +
