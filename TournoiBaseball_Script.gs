@@ -718,15 +718,18 @@ function createHelpSheet(ss) {
     'va en supplémentaire que si elle est nulle au terme du réglementaire (Art. 42.4), donc un ' +
     'seul chiffre suffit (les deux équipes ont le même total réglementaire).');
   addText(
-    'Les ratios RD/RO affichés dans les Classements sont alors déjà calculés sur les manches ' +
-    'régulières seulement, et le pool affiche un ℹ confirmant que la Note 4 a été appliquée. ' +
-    'Si vous oubliez de saisir le Pointage régl. (col. O), un ⚠ apparaît à la place : les ' +
-    'ratios incluent encore les supplémentaires tant que la colonne reste vide.');
+    'IMPORTANT — l\'exclusion ne touche QUE le bris d\'égalité. Le TABLEAU DE POOL (à gauche) ' +
+    'affiche des ratios RD/RO RÉELS : toutes les manches jouées sont comptées, supplémentaires ' +
+    'incluses, donc RD = PC ÷ MD y tombe juste. La Note 4 (exclusion des supplémentaires) ne ' +
+    's\'applique que dans le TABLEAU DE BRIS D\'ÉGALITÉ (à droite), là où une égalité doit ' +
+    'réellement être départagée. Un ℹ sous le pool confirme que la Note 4 y a été appliquée ; ' +
+    'si vous oubliez de saisir le Pointage régl. (col. O), un ⚠ apparaît à la place et ' +
+    'l\'exclusion n\'est pas faite tant que la colonne reste vide.');
   addText(
-    'À noter : les colonnes PP / PC (points pour / contre) des Classements affichent toujours ' +
-    'les totaux RÉELS (supplémentaires incluses) ; seuls les ratios RD/RO et leurs manches ' +
-    'MO/MD utilisent la base régulière. Pour une partie allée en supplémentaire, RD peut donc ' +
-    'ne pas égaler exactement PC ÷ MD : c\'est normal et voulu (Note 4).');
+    'À noter : dans le tableau de bris d\'égalité, les colonnes PP / PC / MO / MD sont en base ' +
+    'RÉGULIÈRE (supplémentaires exclues) — ce sont les chiffres exacts qui produisent ses ratios ' +
+    'RD/RO. Pour une partie allée en supplémentaire, ces valeurs (et les RD/RO) diffèrent donc de ' +
+    'celles du tableau de pool, qui sont réelles : c\'est normal et voulu (Note 4).');
   addText(
     'Le gagnant, la fiche victoires-défaites et la fiche tête-à-tête (1er critère de bris ' +
     'd\'égalité) restent toujours basés sur le score FINAL : seul le ratio (2e et 3e critères) ' +
@@ -745,10 +748,12 @@ function createHelpSheet(ss) {
     'égalité à départager — rangs établis par la fiche V-D". Les groupes distincts sont ' +
     'séparés par une ligne vide.');
   addText(
-    'Chaque ligne montre l\'équipe, sa fiche V-D, ses ratios RD et RO, et surtout le CRITÈRE ' +
-    'DÉCISIF — le critère de l\'Art. 42.11 qui l\'a classée devant l\'équipe de la ligne ' +
-    'suivante du même groupe. Comme les équipes d\'un groupe ont la même fiche (Priorité 1), ' +
-    'le départage vient de :', true);
+    'Chaque ligne montre l\'équipe, sa fiche V-D, ses points pour/contre (PP/PC), ses manches ' +
+    'offensives/défensives (MO/MD), ses ratios RD et RO, et surtout le CRITÈRE DÉCISIF — le ' +
+    'critère de l\'Art. 42.11 qui l\'a classée devant l\'équipe de la ligne suivante du même ' +
+    'groupe. Ces PP/PC/MO/MD sont en base RÉGULIÈRE (supplémentaires exclues, Note 4), si bien ' +
+    'que RD = PC ÷ MD tombe juste ici. Comme les équipes d\'un groupe ont la même fiche ' +
+    '(Priorité 1), le départage vient de :', true);
   addText(
     '• "RD x < y" — départagées par le ratio DÉFENSIF (Priorité 2 ; le plus bas gagne).  ' +
     '• "RO x > y" — ratios défensifs égaux, départagées par le ratio OFFENSIF (Priorité 3 ; ' +
@@ -760,7 +765,9 @@ function createHelpSheet(ss) {
     'portée TÊTE-À-TÊTE entre équipes à égalité pour un pool (Étape A), et sur TOUTES les ' +
     'parties de pool de chaque équipe pour les Étapes B/C. Ils sont en base RÉGULIÈRE : si une ' +
     'partie de la portée est allée en supplémentaires, un ℹ rappelle que les manches ' +
-    'supplémentaires sont exclues (Note 4 — voir la section ci-dessus).');
+    'supplémentaires sont exclues (Note 4 — voir la section ci-dessus). C\'est pourquoi, en ' +
+    'présence d\'une partie supplémentaire, les RD/RO (et les PP/PC/MO/MD) de ce bloc peuvent ' +
+    'différer de ceux du tableau de pool à gauche, qui montre les valeurs RÉELLES.');
   addText(
     'Exemple de lecture : trois équipes 2-1 dans un pool. Le bloc montre la 1re sans critère ' +
     '(meneuse), la 2e avec "RD 0.333 < 0.500" (elle a un meilleur ratio défensif), la 3e avec ' +
@@ -1327,9 +1334,11 @@ function computeTeamStats(team, games, excludeForfaitRatios) {
   var s = {
     team: team, pj: 0, v: 0, d: 0,
     rs: 0, ra: 0,            // points marqués / alloués AFFICHÉS (PP/PC, partie complète)
-    rsNum: 0, raNum: 0,      // numérateurs des ratios (manches régulières seulement — Note 4)
-    offInn: 0, defInn: 0,    // manches des ratios (régulières ; exclusion forfait si demandé)
-    rsRatio: 0, raRatio: 0
+    rsNum: 0, raNum: 0,      // numérateurs des ratios de BRIS (manches régulières — Note 4)
+    offInn: 0, defInn: 0,    // manches des ratios de BRIS (régulières ; exclusion forfait si demandé)
+    rsRatio: 0, raRatio: 0,  // ratios de BRIS d'égalité (base régulière, Note 4)
+    offInnFull: 0, defInnFull: 0,   // manches RÉELLES jouées (suppl. incluses) — tableau de pool
+    rsRatioFull: 0, raRatioFull: 0  // ratios RÉELS (toutes manches jouées) — tableau de pool
   };
 
   // Replis défensifs : pour une partie ordinaire (et pour les objets construits à
@@ -1363,9 +1372,13 @@ function computeTeamStats(team, games, excludeForfaitRatios) {
       if (isLocal) {
         s.offInn += val(g.regOffLocal, g.offLocal);
         s.defInn += val(g.regDefLocal, g.defLocal);
+        s.offInnFull += g.offLocal;       // manches réelles (suppl. incluses)
+        s.defInnFull += g.defLocal;
       } else {
         s.offInn += val(g.regOffVisiteur, g.offVisiteur);
         s.defInn += val(g.regDefVisiteur, g.defVisiteur);
+        s.offInnFull += g.offVisiteur;
+        s.defInnFull += g.defVisiteur;
       }
     }
   });
@@ -1374,6 +1387,12 @@ function computeTeamStats(team, games, excludeForfaitRatios) {
   // Numérateurs en base régulière (Note 4), dénominateurs idem.
   s.raRatio = s.defInn > 0 ? (s.raNum / s.defInn) : Number.POSITIVE_INFINITY;
   s.rsRatio = s.offInn > 0 ? (s.rsNum / s.offInn) : 0;
+
+  // Ratios RÉELS (toutes manches jouées, suppl. incluses) — affichés dans le
+  // tableau de pool. Numérateurs = points réels (rs/ra), dénominateurs = manches
+  // réelles. Diffèrent des ratios de bris seulement s'il y a des supplémentaires.
+  s.raRatioFull = s.defInnFull > 0 ? (s.ra / s.defInnFull) : Number.POSITIVE_INFINITY;
+  s.rsRatioFull = s.offInnFull > 0 ? (s.rs / s.offInnFull) : 0;
   return s;
 }
 
@@ -1667,10 +1686,10 @@ function buildStandingsSheet(ss, classe, games) {
   // -------- RÉCAPITULATIF DEMI-FINALES --------
   writeSemifinalSummary(sheet, row, classe, orderedFirsts, orderedSeconds);
 
-  // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-19 =
-  // bloc « bris d'égalité » à droite (Équipe, V-D, RD, RO, Critère décisif).
+  // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-23 =
+  // bloc « bris d'égalité » (Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif).
   var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 30,
-                20, 160, 50, 65, 65, 175];
+                20, 160, 50, 50, 50, 60, 60, 65, 65, 175];
   for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
   sheet.setFrozenRows(1);
 }
@@ -1687,16 +1706,19 @@ var POOL_HEADER_NOTES = {
   6:  'PP — Points POUR : total des points marqués par l\'équipe dans le pool.',
   7:  'PC — Points CONTRE : total des points alloués (encaissés) par l\'équipe dans le pool.',
   8:  'MO — Manches OFFENSIVES jouées (à la batte), en fractions de tiers (⅓/⅔) si la partie ' +
-      's\'est terminée hâtivement (walk-off / mercy). Dénominateur du ratio offensif RO.',
+      's\'est terminée hâtivement (walk-off / mercy). Inclut les manches supplémentaires. ' +
+      'Dénominateur du ratio offensif RO.',
   9:  'MD — Manches DÉFENSIVES jouées (au champ), en fractions de tiers (⅓/⅔) si fin hâtive. ' +
-      'Dénominateur du ratio défensif RD.',
-  10: 'RD — Ratio DÉFENSIF = points contre par manche défensive, sur les manches RÉGULIÈRES. ' +
-      'Le plus BAS est le meilleur. 2e critère de bris d\'égalité (Art. 42.11), après la fiche ' +
-      'tête-à-tête. Pour une partie allée en supplémentaires, exclut les supplémentaires ' +
-      '(Note 4) : RD peut donc ne pas égaler exactement PC ÷ MD.',
-  11: 'RO — Ratio OFFENSIF = points pour par manche offensive, sur les manches RÉGULIÈRES. Le ' +
-      'plus HAUT est le meilleur. 3e critère de bris d\'égalité (Art. 42.11). Exclut les manches ' +
-      'supplémentaires (Note 4).',
+      'Inclut les manches supplémentaires. Dénominateur du ratio défensif RD.',
+  10: 'RD — Ratio DÉFENSIF = PC ÷ MD (points contre par manche défensive), sur TOUTES les ' +
+      'manches jouées (supplémentaires incluses). Le plus BAS est le meilleur. 2e critère de ' +
+      'bris d\'égalité (Art. 42.11), après la fiche tête-à-tête. Note : pour départager une ' +
+      'égalité, le tableau de bris d\'égalité (à droite) recalcule ce ratio en EXCLUANT les ' +
+      'supplémentaires (Note 4) ; sa valeur peut donc différer de celle affichée ici.',
+  11: 'RO — Ratio OFFENSIF = PP ÷ MO (points pour par manche offensive), sur TOUTES les manches ' +
+      'jouées (supplémentaires incluses). Le plus HAUT est le meilleur. 3e critère de bris ' +
+      'd\'égalité (Art. 42.11). Le tableau de bris d\'égalité, lui, exclut les supplémentaires ' +
+      '(Note 4).',
   12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).'
 };
 
@@ -1743,7 +1765,7 @@ function gameIsSupp(g) {
 // Première colonne du bloc « bris d'égalité » écrit À DROITE des classements.
 // (Col. 13 = mince séparateur du tableau de gauche ; col. 14 = espace.)
 var TIEBREAK_START_COL = 15;
-var TIEBREAK_NCOLS = 5;   // Équipe, V-D, RD, RO, Critère décisif
+var TIEBREAK_NCOLS = 9;   // Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif
 
 // Info-bulle de la colonne « Critère décisif » du bloc bris.
 var TIEBREAK_CRIT_NOTE =
@@ -1814,6 +1836,41 @@ function roCalcNote(s) {
 }
 
 /**
+ * Info-bulle (setNote) du CALCUL du ratio défensif RÉEL affiché dans le TABLEAU
+ * DE POOL : « PC ÷ MD = ratio » sur TOUTES les manches jouées (supplémentaires
+ * incluses). Contrairement à rdCalcNote (base régulière, Note 4, utilisé dans le
+ * tableau de bris d'égalité), ici PC ÷ MD tombe juste.
+ * @param {Object} s  stats issues de computeTeamStats
+ * @return {string}
+ */
+function rdCalcNoteFull(s) {
+  if (!(s.defInnFull > 0)) {
+    return 'RD (ratio défensif) — indisponible : aucune manche défensive comptabilisée.';
+  }
+  return 'RD = points contre ÷ manches défensives jouées = ' +
+    s.ra + ' ÷ ' + formatFraction(s.defInnFull) + ' = ' + round3(s.raRatioFull) +
+    '. Toutes les manches jouées sont incluses (supplémentaires comprises). ' +
+    'Le bris d\'égalité, lui, EXCLUT les supplémentaires (Note 4, Art. 42.11) — ' +
+    'voir le tableau de bris d\'égalité à droite.';
+}
+
+/**
+ * Info-bulle (setNote) du CALCUL du ratio offensif RÉEL affiché dans le tableau
+ * de pool : « PP ÷ MO = ratio » sur toutes les manches jouées. Voir rdCalcNoteFull.
+ * @param {Object} s  stats issues de computeTeamStats
+ * @return {string}
+ */
+function roCalcNoteFull(s) {
+  if (!(s.offInnFull > 0)) {
+    return 'RO (ratio offensif) — indisponible : aucune manche offensive comptabilisée.';
+  }
+  return 'RO = points pour ÷ manches offensives jouées = ' +
+    s.rs + ' ÷ ' + formatFraction(s.offInnFull) + ' = ' + round3(s.rsRatioFull) +
+    '. Toutes les manches jouées sont incluses (supplémentaires comprises). ' +
+    'Le bris d\'égalité, lui, EXCLUT les supplémentaires (Note 4, Art. 42.11).';
+}
+
+/**
  * Écrit, À DROITE d'une section de classement, le DÉTAIL DES BRIS D'ÉGALITÉ :
  * pour chaque groupe d'équipes à fiche V-D identique (sur la portée du bris),
  * montre les stats RÉELLEMENT utilisées par le moteur (RD/RO en base régulière —
@@ -1826,9 +1883,12 @@ function roCalcNote(s) {
  *
  * Fidélité au moteur : la PORTÉE et les MÉTRIQUES sont calculées EXACTEMENT comme
  * dans tiebreaker()/applyPriorities() — même headToHeadGames / filtre « impliquant »,
- * et même appel computeTeamStats(team, portée, useAllGames). Pour un pool en
- * round-robin la portée tête-à-tête = toutes les parties du pool, donc les RD/RO
- * affichés ici COÏNCIDENT avec ceux du tableau de gauche (cohérence voulue).
+ * et même appel computeTeamStats(team, portée, useAllGames). Les colonnes RD/RO —
+ * ainsi que PP/PC/MO/MD — affichées ici sont en base RÉGULIÈRE (Note 4 : manches
+ * supplémentaires exclues), si bien que RD = PC ÷ MD y tombe juste. Quand un pool a
+ * une partie allée en supplémentaires, ces valeurs DIFFÈRENT de celles du tableau de
+ * gauche (qui montre les ratios RÉELS, supplémentaires incluses) : c'est voulu, et le
+ * bandeau « ℹ Manches supplémentaires exclues » sous ce tableau l'explique.
  *
  * @param {Sheet}   sheet
  * @param {number}  startRow     ligne du titre de la section de gauche (alignement)
@@ -1884,11 +1944,12 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
     return row + 1;
   }
 
-  // En-têtes.
-  var headers = ['Équipe', 'V-D', 'RD', 'RO', 'Critère décisif'];
+  // En-têtes. PP/PC/MO/MD sont en base RÉGULIÈRE (Note 4) — comme RD/RO ici —
+  // pour que RD = PC ÷ MD tombe juste dans ce tableau de bris.
+  var headers = ['Équipe', 'V-D', 'PP', 'PC', 'MO', 'MD', 'RD', 'RO', 'Critère décisif'];
   sheet.getRange(row, c0, 1, n).setValues([headers]);
   styleHeader(sheet.getRange(row, c0, 1, n));
-  sheet.getRange(row, c0 + 4).setNote(TIEBREAK_CRIT_NOTE);
+  sheet.getRange(row, c0 + 8).setNote(TIEBREAK_CRIT_NOTE);
   row++;
 
   // Un sous-bloc par groupe à égalité (séparés par une ligne vide).
@@ -1899,14 +1960,18 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
       var rd = (s.defInn > 0 && isFinite(s.raRatio)) ? s.raRatio.toFixed(3) : '—';
       var ro = (s.offInn > 0) ? s.rsRatio.toFixed(3) : '—';
       var crit = (i === 0) ? '—' : decisiveCriterion(statByTeam[grp[i - 1]], s);
+      // PP/PC/MO/MD en base RÉGULIÈRE (Note 4) : ce sont les chiffres exacts qui
+      // produisent les ratios RD/RO du bris d'égalité.
       sheet.getRange(row, c0, 1, n).setValues([[
-        t, s.v + '-' + s.d, rd, ro, crit
+        t, s.v + '-' + s.d, s.rsNum, s.raNum,
+        formatFraction(s.offInn), formatFraction(s.defInn),
+        rd, ro, crit
       ]]);
       sheet.getRange(row, c0, 1, n).setBackground(COLOR_CALC).setWrap(true)
         .setVerticalAlignment('top');
       // Calcul détaillé au survol des cellules RD / RO.
-      sheet.getRange(row, c0 + 2).setNote(rdCalcNote(s));
-      sheet.getRange(row, c0 + 3).setNote(roCalcNote(s));
+      sheet.getRange(row, c0 + 6).setNote(rdCalcNote(s));
+      sheet.getRange(row, c0 + 7).setNote(roCalcNote(s));
       row++;
     });
   });
@@ -1949,18 +2014,21 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
   // Lignes d'équipes.
   standings.forEach(function (s) {
     var advancement = advancementLabel(s.rank);
-    var raRatioDisplay = s.defInn > 0 ? s.raRatio.toFixed(3) : '—';
-    var rsRatioDisplay = s.offInn > 0 ? s.rsRatio.toFixed(3) : '—';
+    // Tableau de pool : ratios RÉELS (toutes manches jouées, suppl. incluses).
+    // L'exclusion des supplémentaires (Note 4) n'est appliquée que dans le tableau
+    // de bris d'égalité à droite.
+    var raRatioDisplay = s.defInnFull > 0 ? s.raRatioFull.toFixed(3) : '—';
+    var rsRatioDisplay = s.offInnFull > 0 ? s.rsRatioFull.toFixed(3) : '—';
     var rowData = [
       s.rank, s.team, s.pj, s.v, s.d, s.rs, s.ra,
-      formatFraction(s.offInn), formatFraction(s.defInn),
+      formatFraction(s.offInnFull), formatFraction(s.defInnFull),
       raRatioDisplay, rsRatioDisplay, advancement, ''
     ];
     sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
 
     // Calcul détaillé au survol des cellules RD (col. 10) / RO (col. 11).
-    sheet.getRange(row, 10).setNote(rdCalcNote(s));
-    sheet.getRange(row, 11).setNote(roCalcNote(s));
+    sheet.getRange(row, 10).setNote(rdCalcNoteFull(s));
+    sheet.getRange(row, 11).setNote(roCalcNoteFull(s));
 
     // Couleur selon le rang (1er = vert, 2e = bleu clair).
     if (s.rank === 1) {
