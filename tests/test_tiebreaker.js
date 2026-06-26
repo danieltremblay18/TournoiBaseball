@@ -347,8 +347,39 @@ note5Checks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test : forçage admin du « 2e de pool » (resolveSecondRepresentative) ----
+// L'admin peut forcer le représentant d'un pool au Meilleur 2e (Étape B) en
+// inscrivant « 2 » à côté d'une équipe (col « Forcer 2e »). Préséance sur le 2e
+// automatique, SAUF si la marque vise la 1re équipe (déjà qualifiée Étape C) ->
+// ignorée + avertissement. Marques multiples valides -> ambigu -> ignoré.
+function standing(team, rank) { return { team: team, rank: rank }; }
+var poolStd = [standing('A', 1), standing('B', 2), standing('C', 3), standing('D', 4)];
+var rsr = resolveSecondRepresentative;
+var rsrChecks = [
+  ['Aucun forçage -> 2e automatique (B), non forcé',
+   rsr(poolStd, []).team === 'B' && rsr(poolStd, []).forced === false],
+  ['Forçage sur le 3e (C) -> C forcé',
+   rsr(poolStd, ['C']).team === 'C' && rsr(poolStd, ['C']).forced === true],
+  ['Forçage sur le 2e lui-même (B) -> B (no-op)',
+   rsr(poolStd, ['B']).team === 'B' && rsr(poolStd, ['B']).forced === true],
+  ['Forçage sur la 1re (A) -> ignoré, repli B + avertissement',
+   (function () { var r = rsr(poolStd, ['A']);
+     return r.team === 'B' && r.forced === false && r.warning !== ''; })()],
+  ['Deux forçages valides (C,D) -> ambigu, repli B + avertissement',
+   (function () { var r = rsr(poolStd, ['C', 'D']);
+     return r.team === 'B' && r.forced === false && r.warning !== ''; })()],
+  ['Marque hors pool ignorée (Z) -> 2e automatique (B)',
+   rsr(poolStd, ['Z']).team === 'B' && rsr(poolStd, ['Z']).forced === false]
+];
+
+console.log('\n--- Vérifications : forçage admin du 2e (resolveSecondRepresentative) ---');
+rsrChecks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);
 }
-console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 + Note 5 OK.');
+console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 + Note 5 + forçage 2e OK.');

@@ -836,6 +836,25 @@ function createHelpSheet(ss) {
     'voit ainsi d\'un coup d\'œil quel critère a fait la différence à chaque rang.');
 
   addBlank();
+  addTitle('FORCER LE 2e D\'UN POOL (Note 5 — forfaits)', COLOR_SECTION);
+  addText(
+    'Cas rare réservé à l\'admin. La Note 5 de l\'Art. 42.11 exclut les parties gagnées par ' +
+    'FORFAIT aux fins du « Meilleur 2e ». Si un forfait a faussé la 2e place d\'un pool, l\'admin ' +
+    'peut désigner manuellement quelle équipe représente ce pool au « SECTION 5 — MEILLEUR 2e ' +
+    '(Position 4) — Étape B ».');
+  addText(
+    'Comment : dans la section du pool (classement de gauche), inscrire le chiffre « 2 » dans la ' +
+    'colonne « Forcer 2e » (dernière colonne du tableau) à côté de l\'équipe choisie. Ce forçage ' +
+    'a PRÉSÉANCE sur le 2e calculé automatiquement. Puis lancer « Mettre à jour les classements » ' +
+    '(ou simplement saisir un score) pour l\'appliquer. Un bandeau ℹ confirme le 2e forcé sous la ' +
+    'section du pool.');
+  addText(
+    'Mettre « 2 » sur l\'équipe déjà 1re du pool est IGNORÉ (elle est déjà qualifiée comme 1re via ' +
+    'l\'Étape C ; elle ne peut pas être aussi le meilleur 2e) : un avertissement ⚠ s\'affiche et le ' +
+    '2e automatique est conservé. Le forçage ne change QUE le candidat au meilleur 2e — le ' +
+    'classement du pool (rangs 1-2-3-4) et tous les ratios restent inchangés.');
+
+  addBlank();
   addTitle('MISE À JOUR AUTOMATIQUE DES CLASSEMENTS', COLOR_SECTION);
   addText(
     'Les classements se mettent à jour TOUT SEULS, en direct et pour tout le monde, dès ' +
@@ -1700,11 +1719,97 @@ function approxEqual(a, b) {
 // ============================================================================
 
 /**
+ * Détermine le représentant d'un pool pour le « Meilleur 2e » (Étape B), en tenant
+ * compte d'un éventuel forçage manuel de l'admin (chiffre 2 dans la colonne « Forcer 2e »).
+ *
+ * Pourquoi : la Note 5 (Art. 42.11) exclut les parties gagnées par forfait aux fins du
+ * meilleur deuxième, ce qui peut changer QUELLE équipe devrait représenter le pool. Plutôt
+ * que de re-classer automatiquement chaque pool sans forfait (rare et risqué), l'admin force
+ * le bon représentant. Ce forçage a préséance, SAUF s'il vise la 1re équipe (déjà qualifiée
+ * via l'Étape C) — auquel cas il est ignoré avec avertissement. Fonction PURE (testable).
+ *
+ * @param {Array} standings    stats du pool triées, chaque élément ayant .team et .rank
+ * @param {Array} markedTeams  noms des équipes du pool marquées « 2 » par l'admin
+ * @return {{team:string, forced:boolean, warning:string}}
+ *         team = représentant retenu ; forced = vrai si un forçage valide s'applique ;
+ *         warning = message non vide si un forçage a été ignoré (1re équipe ou ambiguïté).
+ */
+function resolveSecondRepresentative(standings, markedTeams) {
+  function teamAtRank(r) {
+    for (var i = 0; i < standings.length; i++) {
+      if (standings[i].rank === r) { return standings[i].team; }
+    }
+    return '';
+  }
+  var rank2 = teamAtRank(2);
+
+  // Ne garder que les marques portant sur une équipe réellement dans ce pool.
+  var marks = (markedTeams || []).filter(function (t) {
+    return standings.some(function (s) { return s.team === t; });
+  });
+  if (marks.length === 0) {
+    return { team: rank2, forced: false, warning: '' };
+  }
+
+  var rank1 = teamAtRank(1);
+  var invalidFirst = marks.filter(function (t) { return t === rank1; });
+  var valid        = marks.filter(function (t) { return t !== rank1; });
+
+  if (valid.length === 1) {
+    // Forçage valide. On signale tout de même une éventuelle marque parasite sur la 1re.
+    var w = invalidFirst.length > 0
+      ? 'Marque « 2 » ignorée sur la 1re équipe (' + invalidFirst.join(', ') + ').'
+      : '';
+    return { team: valid[0], forced: true, warning: w };
+  }
+  if (valid.length > 1) {
+    return {
+      team: rank2, forced: false,
+      warning: 'Forçage du 2e ambigu (' + valid.join(', ') +
+               ') — ignoré, 2e automatique conservé.'
+    };
+  }
+  // Uniquement des marques sur la 1re équipe.
+  return {
+    team: rank2, forced: false,
+    warning: 'Forçage du 2e sur la 1re équipe (' + invalidFirst.join(', ') +
+             ') — ignoré : elle est déjà qualifiée comme 1re (Étape C).'
+  };
+}
+
+/**
+ * Relit, AVANT la reconstruction de la feuille Classements, les forçages du « 2e de pool »
+ * saisis par l'admin (chiffre 2 en colonne 13 « Forcer 2e », à côté d'une équipe). Indexés
+ * par NOM d'équipe (stable pendant un tournoi) pour survivre au sheet.clear() qui suit.
+ *
+ * @param {Sheet} sheet  feuille Classements existante (peut être vierge)
+ * @return {Object} { nomÉquipe: true } pour chaque équipe marquée
+ */
+function readSecondOverrides(sheet) {
+  var map = {};
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 13) { return map; }
+  var values = sheet.getRange(1, 1, lastRow, 13).getValues();
+  values.forEach(function (r) {
+    var team = String(r[1]).trim();    // col B (index 1) = Équipe
+    var mark = String(r[12]).trim();   // col M (index 12) = Forcer 2e
+    if (team !== '' && mark === '2') { map[team] = true; }
+  });
+  return map;
+}
+
+/**
  * Construit la feuille Classements pour une classe : 3 pools + Étape C + Étape B.
  */
 function buildStandingsSheet(ss, classe, games) {
   var sheet = ss.getSheetByName(SHEET_STANDINGS[classe]);
   if (!sheet) { sheet = getOrCreateSheet(ss, SHEET_STANDINGS[classe]); }
+
+  // Forçages admin du « 2e de pool » (col 13) — relus AVANT l'effacement pour survivre
+  // à la reconstruction ; réappliqués et réaffichés par writePoolSection.
+  var overrideByTeam = readSecondOverrides(sheet);
+
   sheet.clear();
   clearDataValidations(sheet);
 
@@ -1731,13 +1836,19 @@ function buildStandingsSheet(ss, classe, games) {
 
     var standings = calculatePoolStandings(poolGames, teams);
 
-    row = writePoolSection(sheet, row, classe, p, standings, poolGames);
+    // Représentant « 2e » de ce pool pour le Meilleur 2e (Étape B), forçage admin pris
+    // en compte (Note 5 / forfaits) : par défaut le rang 2, sinon l'équipe forcée.
+    var markedInPool = teams.filter(function (t) { return overrideByTeam[t]; });
+    var secondRep = resolveSecondRepresentative(standings, markedInPool);
+
+    row = writePoolSection(sheet, row, classe, p, standings, poolGames,
+                           markedInPool, secondRep);
 
     standings.forEach(function (s) {
       poolStatsByTeam[s.team] = s;
       if (s.rank === 1) { firsts.push({ team: s.team, pool: p }); }
-      if (s.rank === 2) { seconds.push({ team: s.team, pool: p }); }
     });
+    seconds.push({ team: secondRep.team, pool: p });
 
     row += 1;  // espace entre sections
   });
@@ -1767,7 +1878,7 @@ function buildStandingsSheet(ss, classe, games) {
 
   // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-23 =
   // bloc « bris d'égalité » (Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif).
-  var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 30,
+  var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 70,
                 20, 160, 50, 50, 50, 60, 60, 65, 65, 175];
   for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
   sheet.setFrozenRows(1);
@@ -1798,7 +1909,13 @@ var POOL_HEADER_NOTES = {
       'jouées (supplémentaires incluses). Le plus HAUT est le meilleur. 3e critère de bris ' +
       'd\'égalité (Art. 42.11). Le tableau de bris d\'égalité, lui, exclut les supplémentaires ' +
       '(Note 4).',
-  12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).'
+  12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).',
+  13: 'FORCER 2e — Réservé à l\'admin. Inscrire « 2 » à côté d\'une équipe pour la désigner ' +
+      'comme représentante de ce pool au « Meilleur 2e » (Étape B), à la place du 2e ' +
+      'automatique. Utile quand une victoire par FORFAIT a faussé la 2e place : la Note 5 ' +
+      '(Art. 42.11) exclut ces parties aux fins du meilleur 2e. Le forçage a PRÉSÉANCE. ' +
+      'Mettre « 2 » sur la 1re équipe est IGNORÉ (elle est déjà qualifiée comme 1re, Étape C). ' +
+      'Après la saisie, lancer « Mettre à jour les classements » pour l\'appliquer.'
 };
 
 var ADV_HEADER_NOTES = {
@@ -2069,9 +2186,14 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
 
 /**
  * Écrit une section de classement de pool. Retourne la prochaine ligne libre.
- * @param {Array} poolGames  parties du pool — pour signaler les manches supplémentaires.
+ * @param {Array}  poolGames    parties du pool — pour signaler les manches supplémentaires.
+ * @param {Array}  markedInPool noms des équipes du pool marquées « 2 » (forçage admin du 2e).
+ * @param {Object} secondRep    résultat de resolveSecondRepresentative (team/forced/warning).
  */
-function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
+function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
+                          markedInPool, secondRep) {
+  markedInPool = markedInPool || [];
+  secondRep = secondRep || { team: '', forced: false, warning: '' };
   var row = startRow;
 
   // Titre de section.
@@ -2081,16 +2203,17 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
     .setHorizontalAlignment('center');
   row++;
 
-  // En-têtes (13 colonnes).
+  // En-têtes (13 colonnes). La 13e (« Forcer 2e ») est une saisie admin (Note 5).
   var headers = ['Rang', 'Équipe', 'PJ', 'V', 'D', 'PP',
                  'PC', 'MO', 'MD',
-                 'RD', 'RO', 'Avancement', ''];
+                 'RD', 'RO', 'Avancement', 'Forcer 2e'];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers]);
   styleHeader(sheet.getRange(row, 1, 1, headers.length));
   applyHeaderNotes(sheet, row, POOL_HEADER_NOTES);
   row++;
 
   // Lignes d'équipes.
+  var firstTeamRow = row;
   standings.forEach(function (s) {
     var advancement = advancementLabel(s.rank);
     // Tableau de pool : ratios RÉELS (toutes manches jouées, suppl. incluses).
@@ -2101,7 +2224,8 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
     var rowData = [
       s.rank, s.team, s.pj, s.v, s.d, s.rs, s.ra,
       formatFraction(s.offInnFull), formatFraction(s.defInnFull),
-      raRatioDisplay, rsRatioDisplay, advancement, ''
+      raRatioDisplay, rsRatioDisplay, advancement,
+      (markedInPool.indexOf(s.team) !== -1 ? '2' : '')   // réaffiche le forçage admin
     ];
     sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
 
@@ -2119,6 +2243,30 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames) {
     }
     row++;
   });
+
+  // Saisie admin « Forcer 2e » (col 13) : liste déroulante « 2 » sur les lignes d'équipes.
+  var forceRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['2'], true)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(firstTeamRow, 13, standings.length, 1).setDataValidation(forceRule);
+
+  // Bandeau : forçage admin du 2e (Note 5 / forfaits).
+  if (secondRep.forced) {
+    sheet.getRange(row, 1, 1, 13).merge();
+    sheet.getRange(row, 1)
+      .setValue('ℹ 2e forcé par l\'admin pour le Meilleur 2e (Étape B) : ' + secondRep.team +
+                ' — Note 5, Art. 42.11 (forfaits exclus du meilleur 2e).')
+      .setWrap(true).setBackground(COLOR_SECOND).setVerticalAlignment('top');
+    row++;
+  }
+  if (secondRep.warning) {
+    sheet.getRange(row, 1, 1, 13).merge();
+    sheet.getRange(row, 1)
+      .setValue('⚠ ' + secondRep.warning)
+      .setWrap(true).setBackground(COLOR_INPUT).setVerticalAlignment('top');
+    row++;
+  }
 
   // Note 4 (Art. 42.11) — parties allées en manches supplémentaires.
   var suppGames = (poolGames || []).filter(gameIsSupp);
