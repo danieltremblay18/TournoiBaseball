@@ -419,9 +419,13 @@ function createResultsSheet(ss, classe) {
         'complètes" (col. K = dernière manche réellement jouée).',
     14: 'TYPE DE FIN — "Normal" = partie jouée jusqu\'au bout. "Mercy" = arrêtée avant ' +
         'la fin (règle de l\'écart de points). "Forfait" = une équipe ne se présente pas ' +
-        'ou abandonne ; le score n\'indique alors que le gagnant, et les manches sont ' +
-        'automatiquement comptées selon les manches prévues (col. M) pour le gagnant et ' +
-        '0-0 pour le perdant. ' +
+        'ou abandonne ; indiquez simplement le gagnant en lui donnant un score plus élevé ' +
+        '(les chiffres exacts importent peu). Le système attribue alors automatiquement ' +
+        'le pointage officiel — 1 point par manche prévue (col. M) au gagnant, 0 au ' +
+        'perdant — et crédite le gagnant de "Manches prévues" manches DÉFENSIVES / 0 ' +
+        'offensive, et le perdant de 0 manche défensive / "Manches prévues" offensives ' +
+        '(Art. 42.11). Rappel (Note 5) : une partie gagnée par forfait n\'est PAS ' +
+        'comptabilisée dans les ratios servant au "Meilleur deuxième" (Étapes B et C). ' +
         '"Supplémentaires" = partie prolongée au-delà des manches réglementaires. Dans ce ' +
         'cas, saisissez aussi le "Pointage régl. (suppl.)" (col. O) : le système EXCLUT alors ' +
         'automatiquement les points des manches supplémentaires du ratio de bris d\'égalité ' +
@@ -650,9 +654,12 @@ function createHelpSheet(ss) {
   addColumnDoc('N — Type de fin',
     '"Normal" = partie jouée selon les règles standards jusqu\'au bout. "Mercy" = partie ' +
     'arrêtée avant la fin en raison de la règle de l\'écart de points. "Forfait" = une ' +
-    'équipe ne se présente pas ou abandonne ; le score n\'indique alors que qui gagne, et ' +
-    'les manches sont automatiquement comptées, pour le gagnant, selon les manches prévues ' +
-    '(col. M), et 0-0 pour le perdant. ' +
+    'équipe ne se présente pas ou abandonne ; indiquez simplement le gagnant en lui donnant ' +
+    'un score plus élevé (les chiffres exacts importent peu). Le système attribue alors le ' +
+    'pointage officiel (1 point par manche prévue, col. M, au gagnant ; 0 au perdant) et ' +
+    'crédite le gagnant de "Manches prévues" manches DÉFENSIVES et 0 offensive, le perdant ' +
+    'de 0 manche défensive et "Manches prévues" offensives (Art. 42.11). Voir aussi la ' +
+    'section "Forfaits (Art. 42.11)" plus bas. ' +
     '"Supplémentaires" = partie prolongée au-delà des manches réglementaires (remplir alors ' +
     'la col. O ; voir la section "Manches supplémentaires et Note 4" plus bas).');
   addColumnDoc('O — Pointage régl. (suppl.)',
@@ -734,6 +741,30 @@ function createHelpSheet(ss) {
     'd\'un Mercy reçoit le crédit du nombre de manches DÉFENSIVES PRÉVUES (colonne M — ' +
     '6 en temps normal, 5 lors d\'une journée écourtée), comme si elle avait lancé toute ' +
     'la partie réglementaire.');
+
+  addBlank();
+  addTitle('FORFAITS (Art. 42.11)', COLOR_SECTION);
+  addText(
+    'Pour une partie gagnée par FORFAIT (une équipe ne se présente pas ou abandonne), ' +
+    'choisissez "Forfait" dans la colonne "Type de fin" et indiquez le gagnant en lui ' +
+    'donnant un score plus élevé que l\'adversaire (par ex. 1-0). Les chiffres exacts ' +
+    'saisis n\'ont pas d\'importance : le système les remplace automatiquement par le ' +
+    'pointage officiel.');
+  addText(
+    'Pointage officiel : 1 point par manche RÉGLEMENTAIRE PRÉVUE (colonne M) est accordé ' +
+    'à l\'équipe GAGNANTE, et 0 au perdant. Une partie prévue de 6 manches donne donc 6-0 ' +
+    '(5-0 lors d\'une journée écourtée à 5 manches). C\'est ce pointage qui apparaît dans ' +
+    'les points pour/contre (PP/PC) des classements.');
+  addText(
+    'Manches créditées : l\'équipe GAGNANTE reçoit "Manches prévues" manches DÉFENSIVES et ' +
+    '0 manche OFFENSIVE ; l\'équipe PERDANTE reçoit 0 manche défensive et "Manches prévues" ' +
+    'manches offensives.');
+  addText(
+    'Note 5 (Art. 42.11) : les parties gagnées par forfait ne sont PAS comptabilisées dans ' +
+    'les ratios RD/RO servant à départager les équipes aux fins du « Meilleur deuxième » ' +
+    '(Étapes B et C) — le système les exclut alors automatiquement (points ET manches). ' +
+    'Elles comptent toutefois normalement dans la fiche victoires-défaites et dans le ' +
+    'classement de chaque pool (Étape A).');
 
   addBlank();
   addTitle('MANCHES SUPPLÉMENTAIRES ET NOTE 4 (Art. 42.11)', COLOR_SECTION);
@@ -1087,6 +1118,16 @@ function getGameResults(classe) {
       }
     }
 
+    // Forfait : le score officiel est de 1 point par manche réglementaire prévue
+    // (col. M) pour le gagnant et 0 pour le perdant (Art. 42.11). Le registraire
+    // n'a qu'à désigner le gagnant en lui donnant un score plus élevé ; le système
+    // normalise ensuite le pointage.
+    if (type === 'Forfait') {
+      var localeGagneForfait = (scoreLocal >= scoreVisiteur);
+      scoreLocal    = localeGagneForfait ? manchesPrevues : 0;
+      scoreVisiteur = localeGagneForfait ? 0 : manchesPrevues;
+    }
+
     var inn = calculateInnings(scoreLocal, scoreVisiteur, manches, retraits, type, homeKnown, manchesPrevues);
     var winner = (type === 'Forfait')
       ? (scoreLocal >= scoreVisiteur ? local : visiteur)   // forfait : le score indique le gagnant
@@ -1199,7 +1240,7 @@ function isRowComplete(v) {
  * Calcule les manches offensives/défensives pour la locale et la visiteuse.
  *
  * Règles :
- *  - Forfait : gagnant 6/6, perdant 0/0.
+ *  - Forfait : gagnant 0 off / regulation déf ; perdant regulation off / 0 déf (Art. 42.11).
  *  - Mercy : gagnant reçoit 6 manches défensives ; perdant reçoit les manches
  *            réellement jouées (avec fractions).
  *  - Victoire locale en bas (walk-off) : détectée si Score Local > Score Visiteur
@@ -1223,13 +1264,17 @@ function calculateInnings(scoreLocal, scoreVisiteur, manchesCompletes, retraitsE
   var partial = (N - 1) + frac;     // ex: N=5, H=1 -> 4.333
 
   // -------- FORFAIT --------
+  // Art. 42.11 : le gagnant reçoit le crédit de `regulation` manches DÉFENSIVES et
+  // 0 manche OFFENSIVE ; le perdant 0 manche défensive et `regulation` manches
+  // offensives. (Le pointage 1 pt/manche au gagnant est appliqué en amont, dans
+  // getGameResults.)
   if (typeFin === 'Forfait') {
     if (scoreLocal >= scoreVisiteur) {
       // Locale gagne par forfait.
-      return { offLocal: regulation, defLocal: regulation, offVisiteur: 0, defVisiteur: 0 };
+      return { offLocal: 0, defLocal: regulation, offVisiteur: regulation, defVisiteur: 0 };
     } else {
       // Visiteur gagne par forfait.
-      return { offLocal: 0, defLocal: 0, offVisiteur: regulation, defVisiteur: regulation };
+      return { offLocal: regulation, defLocal: 0, offVisiteur: 0, defVisiteur: regulation };
     }
   }
 
@@ -1393,12 +1438,16 @@ function computeTeamStats(team, games, excludeForfaitRatios) {
     // Pour toute partie non-supplémentaire, reg* == score réel → ratio inchangé.
     var regTeamRuns = isLocal ? val(g.regRsLocal, g.scoreLocal) : val(g.regRsVisiteur, g.scoreVisiteur);
     var regOppRuns  = isLocal ? val(g.regRsVisiteur, g.scoreVisiteur) : val(g.regRsLocal, g.scoreLocal);
-    s.rsNum += regTeamRuns;
-    s.raNum += regOppRuns;
 
     // Manches des ratios — base régulière (Note 4) ; peut exclure les forfaits.
+    // Note 5 (Art. 42.11) : aux fins du « Meilleur deuxième » (Étapes B/C), une
+    // partie gagnée par forfait n'est PAS comptabilisée — on exclut alors la partie
+    // ENTIÈREMENT du ratio, autant les points (rsNum/raNum) que les manches
+    // (offInn/defInn), sinon le numérateur garderait des points sans dénominateur.
     var skipRatio = (excludeForfaitRatios && g.type === 'Forfait');
     if (!skipRatio) {
+      s.rsNum += regTeamRuns;
+      s.raNum += regOppRuns;
       if (isLocal) {
         s.offInn += val(g.regOffLocal, g.offLocal);
         s.defInn += val(g.regDefLocal, g.defLocal);

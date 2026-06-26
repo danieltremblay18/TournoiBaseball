@@ -259,7 +259,13 @@ var innChecks = [
    innEq(calculateInnings(3, 7, 6, 0, 'Normal', true, 6), 6, 6, 6, 6)],
   // Équipe locale non indiquée (homeKnown=false) : repli symétrique.
   ['Locale inconnue 7-5 (homeKnown=false) -> 6/6/6/6',
-   innEq(calculateInnings(7, 5, 6, 0, 'Normal', false, 6), 6, 6, 6, 6)]
+   innEq(calculateInnings(7, 5, 6, 0, 'Normal', false, 6), 6, 6, 6, 6)],
+  // Forfait gagné par la locale (prévues 6) : gagnant 0 off / 6 déf, perdant 6 off / 0 déf.
+  ['Forfait locale 6-0 (prév6) -> 0/6/6/0',
+   innEq(calculateInnings(6, 0, 6, 0, 'Forfait', true, 6), 0, 6, 6, 0)],
+  // Forfait gagné par la visiteuse, journée écourtée (prévues 5) : miroir 5/0/0/5.
+  ['Forfait visiteuse 0-5 (prév5) -> 5/0/0/5',
+   innEq(calculateInnings(0, 5, 5, 0, 'Forfait', true, 5), 5, 0, 0, 5)]
 ];
 
 console.log('\n--- Vérifications : calculateInnings (manches prévues + victoire locale) ---');
@@ -304,8 +310,45 @@ note4Checks.forEach(function (c) {
   if (!c[1]) { allOk = false; }
 });
 
+// --- Test Note 5 : forfaits exclus des ratios du « Meilleur deuxième » -------
+// Un forfait gagné par la locale (pointage officiel 6-0) crédite le gagnant de
+// 0 manche offensive / 6 défensives, le perdant de 6 off / 0 déf (Art. 42.11).
+// computeTeamStats doit :
+//  - excludeForfaitRatios=false (Étape A / tableau de pool) : la partie compte
+//    dans les ratios (rsNum/raNum + offInn/defInn) ;
+//  - excludeForfaitRatios=true (Étapes B/C) : la partie est EXCLUE EN ENTIER des
+//    ratios — autant les points que les manches (sinon le numérateur garderait
+//    des points sans dénominateur).
+// La fiche V-D et les PP/PC réels, eux, comptent dans les deux cas.
+function forfaitGame(local, vis) {
+  return {
+    pool: 1, local: local, visiteur: vis,
+    scoreLocal: 6, scoreVisiteur: 0, winner: local, type: 'Forfait',
+    offLocal: 0, defLocal: 6, offVisiteur: 6, defVisiteur: 0
+  };
+}
+var fWin  = computeTeamStats('W', [forfaitGame('W', 'L')], false); // gagnant, inclus
+var fWinX = computeTeamStats('W', [forfaitGame('W', 'L')], true);  // gagnant, exclu
+var fLose = computeTeamStats('L', [forfaitGame('W', 'L')], false); // perdant, inclus
+var note5Checks = [
+  ['Inclus : gagnant rsNum=6 / raNum=0',      fWin.rsNum === 6 && fWin.raNum === 0],
+  ['Inclus : gagnant offInn=0 / defInn=6',    approx(fWin.offInn, 0) && approx(fWin.defInn, 6)],
+  ['Inclus : perdant offInn=6 / defInn=0',    approx(fLose.offInn, 6) && approx(fLose.defInn, 0)],
+  ['Exclu : ratios vidés (rsNum/raNum/MO/MD = 0)',
+   fWinX.rsNum === 0 && fWinX.raNum === 0 &&
+   approx(fWinX.offInn, 0) && approx(fWinX.defInn, 0)],
+  ['Exclu : fiche V-D conservée (1-0)',       fWinX.v === 1 && fWinX.d === 0],
+  ['Exclu : PP/PC réels conservés (6/0)',     fWinX.rs === 6 && fWinX.ra === 0]
+];
+
+console.log('\n--- Vérifications : Note 5 (forfaits exclus du « Meilleur deuxième ») ---');
+note5Checks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);
 }
-console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 OK.');
+console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 + Note 5 OK.');
