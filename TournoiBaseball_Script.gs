@@ -893,11 +893,12 @@ function createHelpSheet(ss) {
     'peut désigner manuellement quelle équipe représente ce pool au « SECTION 5 — MEILLEUR 2e ' +
     '(Position 4) — Étape B ».');
   addText(
-    'Comment : dans la section du pool (classement de gauche), inscrire le chiffre « 2 » dans la ' +
-    'colonne « Forcer 2e » (dernière colonne du tableau) à côté de l\'équipe choisie. Ce forçage ' +
-    'a PRÉSÉANCE sur le 2e calculé automatiquement. Le classement se recalcule TOUT SEUL dès la ' +
-    'saisie (si la mise à jour auto est activée) ; sinon lancer « Mettre à jour les classements ». ' +
-    'Un bandeau ℹ confirme le 2e forcé sous la section du pool.');
+    'Comment : dans la section du pool (classement de gauche), COCHER la case de la colonne ' +
+    '« Forcer 2e » (dernière colonne du tableau) à côté de l\'équipe choisie ; DÉCOCHER pour ' +
+    'revenir au 2e automatique. Ce forçage a PRÉSÉANCE sur le 2e calculé automatiquement. Le ' +
+    'classement se recalcule TOUT SEUL dès qu\'on coche/décoche (si la mise à jour auto est ' +
+    'activée) ; sinon lancer « Mettre à jour les classements ». Un bandeau ℹ confirme le 2e ' +
+    'forcé sous la section du pool.');
   addText(
     'Mettre « 2 » sur l\'équipe déjà 1re du pool est IGNORÉ (elle est déjà qualifiée comme 1re via ' +
     'l\'Étape C ; elle ne peut pas être aussi le meilleur 2e) : un avertissement ⚠ s\'affiche et le ' +
@@ -1843,8 +1844,10 @@ function readSecondOverrides(sheet) {
   var values = sheet.getRange(1, 1, lastRow, 13).getValues();
   values.forEach(function (r) {
     var team = String(r[1]).trim();    // col B (index 1) = Équipe
-    var mark = String(r[12]).trim();   // col M (index 12) = Forcer 2e
-    if (team !== '' && mark === '2') { map[team] = true; }
+    var mark = r[12];                   // col M (index 12) = Forcer 2e (case à cocher)
+    // Case cochée (true) ; compat. ascendante avec un ancien « 2 » saisi à la main.
+    var marked = (mark === true) || (String(mark).trim() === '2');
+    if (team !== '' && marked) { map[team] = true; }
   });
   return map;
 }
@@ -1960,13 +1963,14 @@ var POOL_HEADER_NOTES = {
       'd\'égalité (Art. 42.11). Le tableau de bris d\'égalité, lui, exclut les supplémentaires ' +
       '(Note 4).',
   12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).',
-  13: 'FORCER 2e — Réservé à l\'admin. Inscrire « 2 » à côté d\'une équipe pour la désigner ' +
+  13: 'FORCER 2e — Réservé à l\'admin. COCHER la case à côté d\'une équipe pour la désigner ' +
       'comme représentante de ce pool au « Meilleur 2e » (Étape B), à la place du 2e ' +
-      'automatique. Utile quand une victoire par FORFAIT a faussé la 2e place : la Note 5 ' +
-      '(Art. 42.11) exclut ces parties aux fins du meilleur 2e. Le forçage a PRÉSÉANCE. ' +
-      'Mettre « 2 » sur la 1re équipe est IGNORÉ (elle est déjà qualifiée comme 1re, Étape C). ' +
-      'Le classement se recalcule automatiquement dès la saisie (si la mise à jour auto est ' +
-      'activée) ; sinon lancer « Mettre à jour les classements ».'
+      'automatique ; DÉCOCHER pour revenir au 2e automatique. Utile quand une victoire par ' +
+      'FORFAIT a faussé la 2e place : la Note 5 (Art. 42.11) exclut ces parties aux fins du ' +
+      'meilleur 2e. Le forçage a PRÉSÉANCE. Cocher la case de la 1re équipe est IGNORÉ (elle ' +
+      'est déjà qualifiée comme 1re, Étape C). Le classement se recalcule automatiquement dès ' +
+      'qu\'on coche/décoche (si la mise à jour auto est activée) ; sinon lancer « Mettre à jour ' +
+      'les classements ».'
 };
 
 var ADV_HEADER_NOTES = {
@@ -2278,7 +2282,7 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
       s.rank, s.team, s.pj, s.v, s.d, s.rs, s.ra,
       formatFraction(s.offInnFull), formatFraction(s.defInnFull),
       raRatioDisplay, rsRatioDisplay, advancement,
-      (markedInPool.indexOf(s.team) !== -1 ? '2' : '')   // réaffiche le forçage admin
+      ''   // col 13 « Forcer 2e » : case à cocher insérée après la boucle
     ];
     sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
 
@@ -2297,12 +2301,15 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
     row++;
   });
 
-  // Saisie admin « Forcer 2e » (col 13) : liste déroulante « 2 » sur les lignes d'équipes.
-  var forceRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['2'], true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange(firstTeamRow, 13, standings.length, 1).setDataValidation(forceRule);
+  // Saisie admin « Forcer 2e » (col 13) : CASE À COCHER sur les lignes d'équipes.
+  // Une case se coche/décoche d'un simple clic — facile à RETIRER, contrairement à
+  // une liste déroulante à valeur unique (qui n'offrait aucune option « vide »).
+  // La case de l'équipe forcée est rétablie à chaque reconstruction.
+  var forceRange = sheet.getRange(firstTeamRow, 13, standings.length, 1);
+  forceRange.insertCheckboxes();
+  forceRange.setValues(standings.map(function (s) {
+    return [markedInPool.indexOf(s.team) !== -1];   // true = forcée (case cochée)
+  }));
 
   // Bandeau : forçage admin du 2e (Note 5 / forfaits).
   if (secondRep.forced) {
