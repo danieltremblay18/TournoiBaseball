@@ -1898,7 +1898,7 @@ function buildStandingsSheet(ss, classe, games) {
       poolStatsByTeam[s.team] = s;
       if (s.rank === 1) { firsts.push({ team: s.team, pool: p }); }
     });
-    seconds.push({ team: secondRep.team, pool: p });
+    seconds.push({ team: secondRep.team, pool: p, forced: secondRep.forced });
 
     row += 1;  // espace entre sections
   });
@@ -1981,10 +1981,12 @@ var ADV_HEADER_NOTES = {
       'parties de pool (forfaits exclus des ratios).',
   8:  'PP — Points POUR (sur toutes les parties de pool).',
   9:  'PC — Points CONTRE (sur toutes les parties de pool).',
-  10: 'NOTE — Avertissements : « Vérif. manuelle » si la Priorité 4 (« manches en avance », non ' +
-      'automatisée) est atteinte ; « Note 4 appliquée (suppl.) » si une partie de l\'équipe est ' +
-      'allée en supplémentaires et que la Note 4 a été appliquée ; « pointage régl. manquant » ' +
-      'si une partie supplémentaire n\'a pas son Pointage régl. (col. O) saisi.'
+  10: 'NOTE — Avertissements : « 🔒 2e forcé par le registraire » si cette équipe a été désignée ' +
+      'manuellement comme 2e de son pool (colonne « Forcer 2e », Note 5 / forfaits) au lieu du 2e ' +
+      'automatique ; « Vérif. manuelle » si la Priorité 4 (« manches en avance », non automatisée) ' +
+      'est atteinte ; « Note 4 appliquée (suppl.) » si une partie de l\'équipe est allée en ' +
+      'supplémentaires et que la Note 4 a été appliquée ; « pointage régl. manquant » si une ' +
+      'partie supplémentaire n\'a pas son Pointage régl. (col. O) saisi.'
 };
 
 /**
@@ -2382,9 +2384,14 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
   applyHeaderNotes(sheet, row, ADV_HEADER_NOTES);
   row++;
 
-  // Map team -> pool d'origine.
+  // Map team -> pool d'origine, et équipes dont le 2e a été FORCÉ par le registraire
+  // (Note 5 / forfaits) — seul l'Étape B (poolInfo = seconds) porte ce drapeau.
   var poolOf = {};
-  poolInfo.forEach(function (info) { poolOf[info.team] = info.pool; });
+  var forcedTeam = {};
+  poolInfo.forEach(function (info) {
+    poolOf[info.team] = info.pool;
+    if (info.forced) { forcedTeam[info.team] = true; }
+  });
 
   // Détecte si Priorité 4 a été nécessaire.
   var needsManual = orderedTeams.__needsManualCheck === true;
@@ -2397,9 +2404,10 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
     });
     var st = computeTeamStats(team, teamGames, true);
 
-    // Note : vérif. manuelle Priorité 4 et/ou marqueur manches supplémentaires
-    // (Note 4) — les deux peuvent coexister.
+    // Note : forçage admin du 2e (Note 5), vérif. manuelle Priorité 4 et/ou marqueur
+    // manches supplémentaires (Note 4) — peuvent coexister.
     var noteParts = [];
+    if (forcedTeam[team]) { noteParts.push('🔒 2e forcé par le registraire (Note 5)'); }
     if (needsManual) { noteParts.push('⚠ Vérif. manuelle (Manches_Détail)'); }
     if (teamGames.some(function (g) { return g.suppNeedsTie; })) {
       noteParts.push('⚠ Suppl. : pointage régl. manquant (col. O)');
