@@ -87,6 +87,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏆 Tournoi Baseball')
     .addItem('Initialiser les feuilles', 'createAllSheets')
+    .addItem('Initialiser (conserver Configuration)', 'createAllSheetsKeepConfig')
     .addItem('Générer les matchs', 'generateGames')
     .addItem('Mettre à jour les classements', 'calculateStandings')
     .addSeparator()
@@ -263,13 +264,39 @@ function handleResultEdit(e) {
 // ============================================================================
 
 /**
- * Crée (ou réinitialise) toutes les feuilles nécessaires au tournoi.
+ * Crée (ou réinitialise) TOUTES les feuilles nécessaires au tournoi, Configuration
+ * comprise (l'horaire collé est effacé). Item de menu "Initialiser les feuilles".
  */
 function createAllSheets() {
+  rebuildSheets(false);
+}
+
+/**
+ * Comme "Initialiser les feuilles", mais PRÉSERVE la feuille "Configuration"
+ * (l'horaire déjà collé). Pratique pour régénérer Aide / Résultats / Classements
+ * après un nouveau collage de code, sans avoir à recoller l'horaire du tournoi.
+ * Note : les feuilles Résultats A/B sont quand même reconstruites — les scores
+ * déjà saisis sont effacés ; relancez "Générer les matchs" ensuite.
+ */
+function createAllSheetsKeepConfig() {
+  rebuildSheets(true);
+}
+
+/**
+ * Reconstruit les feuilles du tournoi.
+ * @param {boolean} keepConfig  true => ne touche pas à "Configuration" si elle
+ *                              existe déjà (préserve l'horaire collé) ; false =>
+ *                              réinitialise aussi "Configuration".
+ */
+function rebuildSheets(keepConfig) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   createHelpSheet(ss);
-  createConfigSheet(ss);
+  if (keepConfig && ss.getSheetByName(SHEET_CONFIG)) {
+    // Configuration conservée telle quelle (horaire déjà collé préservé).
+  } else {
+    createConfigSheet(ss);
+  }
   CLASSES.forEach(function (c) { createResultsSheet(ss, c); });
   CLASSES.forEach(function (c) { createStandingsSheet(ss, c); });
   createInningDetailSheet(ss);
@@ -280,8 +307,11 @@ function createAllSheets() {
   // Réordonne les feuilles dans un ordre logique.
   reorderSheets(ss);
 
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    'Feuilles initialisées. Collez l\'horaire dans "Configuration" puis "Générer les matchs".',
+  ss.toast(
+    keepConfig
+      ? 'Feuilles réinitialisées (Configuration conservée). Lancez "Générer les ' +
+        'matchs" puis "⚡ Activer la mise à jour auto".'
+      : 'Feuilles initialisées. Collez l\'horaire dans "Configuration" puis "Générer les matchs".',
     'Tournoi Baseball', 6);
 }
 
