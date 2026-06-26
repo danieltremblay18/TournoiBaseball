@@ -146,10 +146,14 @@ function installTriggers() {
  * LockService fonctionne) tout en se déclenchant pour les éditions de TOUS les
  * collaborateurs. À FAIRE UNE FOIS après chaque collage du code.
  *
+ * Deux déclencheurs possibles :
+ *   - Édition des colonnes de saisie H..O (8..15) d'une feuille "Résultats" (les
+ *     colonnes A..G copiées et P..T calculées sont ignorées) — recalcul complet.
+ *   - Édition de la colonne « Forcer 2e » (13) d'une feuille "Classements" : forçage
+ *     admin du 2e d'un pool (Note 5) — reconstruit le classement de la classe via
+ *     recalcStandingsOnly (sans toucher aux Résultats).
+ *
  * Conçu pour un usage multi-postes fiable :
- *   - On ne réagit qu'aux éditions des colonnes de saisie H..M (8..13) d'une
- *     feuille "Résultats" (les colonnes A..G copiées et P..T calculées sont
- *     ignorées).
  *   - On ne recalcule QUE lorsque la ligne de la partie est COMPLÈTE
  *     (isRowComplete) : pas de classement qui bouge en pleine saisie, donc pas
  *     de confusion pour ceux qui regardent. Exception : l'effacement d'un score
@@ -173,8 +177,23 @@ function handleResultEdit(e) {
 
   var sheet = e.range.getSheet();
   var name = sheet.getName();
+  var startCol = e.range.getColumn();
+  var endCol   = startCol + e.range.getNumColumns() - 1;
 
-  // Quelle classe correspond à la feuille éditée ? (sinon on ignore)
+  // --- Édition de la colonne « Forcer 2e » (13) d'une feuille Classements ? ---
+  // L'admin force le représentant d'un pool au Meilleur 2e (Note 5) : on reconstruit
+  // le classement de la classe. buildStandingsSheet relit le forçage via
+  // readSecondOverrides AVANT de tout réécrire — aucune écriture dans Résultats.
+  var standingsClasse = null;
+  CLASSES.forEach(function (c) {
+    if (SHEET_STANDINGS[c] === name) { standingsClasse = c; }
+  });
+  if (standingsClasse) {
+    if (startCol <= 13 && endCol >= 13) { recalcStandingsOnly(e, standingsClasse); }
+    return;
+  }
+
+  // --- Sinon : édition d'une feuille "Résultats" ? (sinon on ignore) ---
   var classe = null;
   CLASSES.forEach(function (c) {
     if (SHEET_RESULTS[c] === name) { classe = c; }
@@ -182,8 +201,6 @@ function handleResultEdit(e) {
   if (!classe) { return; }
 
   // L'édition doit toucher au moins une colonne de saisie H..O (8..15).
-  var startCol = e.range.getColumn();
-  var endCol   = startCol + e.range.getNumColumns() - 1;
   if (endCol < 8 || startCol > 15) { return; }
 
   // Lignes éditées (ignore l'en-tête, ligne 1).
@@ -254,6 +271,39 @@ function handleResultEdit(e) {
 
     buildStandingsSheet(ss, classe, games);
     ss.toast('Classement ' + classe + ' mis à jour.', 'Tournoi Baseball', 3);
+  } finally {
+    if (lock) { lock.releaseLock(); }
+  }
+}
+
+/**
+ * Reconstruit UNIQUEMENT la feuille Classements d'une classe (sans toucher aux
+ * colonnes calculées P..T des Résultats), sous verrou de document. Déclenché par un
+ * forçage admin du « 2e de pool » (col 13 de Classements) : buildStandingsSheet relit
+ * le forçage via readSecondOverrides AVANT de reconstruire, donc le « 2 » saisi est
+ * pris en compte immédiatement. Acquisition défensive du verrou (cf. handleResultEdit).
+ * Les écritures programmées de buildStandingsSheet ne redéclenchent pas le handler.
+ */
+function recalcStandingsOnly(e, classe) {
+  var lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+  } catch (err) {
+    lock = null;
+  }
+  if (lock) {
+    try {
+      lock.waitLock(10000);
+    } catch (err) {
+      return;   // verrou occupé : un autre poste recalcule déjà
+    }
+  }
+
+  try {
+    var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
+    var games = getGameResults(classe);
+    buildStandingsSheet(ss, classe, games);
+    ss.toast('Classement ' + classe + ' mis à jour (2e forcé).', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
   }
@@ -845,9 +895,9 @@ function createHelpSheet(ss) {
   addText(
     'Comment : dans la section du pool (classement de gauche), inscrire le chiffre « 2 » dans la ' +
     'colonne « Forcer 2e » (dernière colonne du tableau) à côté de l\'équipe choisie. Ce forçage ' +
-    'a PRÉSÉANCE sur le 2e calculé automatiquement. Puis lancer « Mettre à jour les classements » ' +
-    '(ou simplement saisir un score) pour l\'appliquer. Un bandeau ℹ confirme le 2e forcé sous la ' +
-    'section du pool.');
+    'a PRÉSÉANCE sur le 2e calculé automatiquement. Le classement se recalcule TOUT SEUL dès la ' +
+    'saisie (si la mise à jour auto est activée) ; sinon lancer « Mettre à jour les classements ». ' +
+    'Un bandeau ℹ confirme le 2e forcé sous la section du pool.');
   addText(
     'Mettre « 2 » sur l\'équipe déjà 1re du pool est IGNORÉ (elle est déjà qualifiée comme 1re via ' +
     'l\'Étape C ; elle ne peut pas être aussi le meilleur 2e) : un avertissement ⚠ s\'affiche et le ' +
@@ -1915,7 +1965,8 @@ var POOL_HEADER_NOTES = {
       'automatique. Utile quand une victoire par FORFAIT a faussé la 2e place : la Note 5 ' +
       '(Art. 42.11) exclut ces parties aux fins du meilleur 2e. Le forçage a PRÉSÉANCE. ' +
       'Mettre « 2 » sur la 1re équipe est IGNORÉ (elle est déjà qualifiée comme 1re, Étape C). ' +
-      'Après la saisie, lancer « Mettre à jour les classements » pour l\'appliquer.'
+      'Le classement se recalcule automatiquement dès la saisie (si la mise à jour auto est ' +
+      'activée) ; sinon lancer « Mettre à jour les classements ».'
 };
 
 var ADV_HEADER_NOTES = {
