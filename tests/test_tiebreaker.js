@@ -166,6 +166,41 @@ console.log((p4FlagOk ? '  OK   ' : '  ÉCHEC') +
             ' : drapeau vérification manuelle levé (P4 atteinte, pas de retour à P1)');
 if (!p4OrderOk || !p4FlagOk) { allOk = false; }
 
+// --- Test : override « Forcer rang » (résolution manuelle de la Priorité 4) ----
+// Même scénario P4 que ci-dessus ({B,C} indissociables en P4 ; {A,D} séparés par
+// P2 -> D>A). Le registraire calcule la P4 sur papier puis saisit l'ordre via la
+// colonne « Forcer rang » (param `forced` = map équipe -> numéro). Seul l'ordre
+// RELATIF compte ; résolu ssi aucun doublon ET au plus une équipe sans numéro.
+//  (1) {C:1,B:2}  -> C avant B  -> C>B>D>A, drapeau LEVÉ (P4 résolue).
+//  (2) {B:1} seul -> 1 numéro + 1 blanc -> B avant C, résolu (au plus 1 blanc).
+//  (3) {B:1,C:1}  -> doublon -> NON résolu, drapeau conservé.
+var fOrder1 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { C: 1, B: 2 });
+var fOrder2 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { B: 1 });
+var fOrder3 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { B: 1, C: 1 });
+
+console.log('\n--- Vérification : override « Forcer rang » (Priorité 4) ---');
+console.log('  (1) Ordre produit : ' + fOrder1.join(' > ') +
+            ' | drapeau : ' + (fOrder1.__needsManualCheck === true));
+var forcedChecks = [
+  ['(1) {C:1,B:2} -> C > B > D > A',
+   fOrder1.join(' > ') === 'C > B > D > A'],
+  ['(1) drapeau LEVÉ (P4 résolue par override)',
+   fOrder1.__needsManualCheck !== true],
+  ['(2) {B:1} (1 blanc) -> B > C > D > A, résolu',
+   fOrder2.join(' > ') === 'B > C > D > A' && fOrder2.__needsManualCheck !== true],
+  ['(3) {B:1,C:1} doublon -> drapeau conservé',
+   fOrder3.__needsManualCheck === true],
+  ['resolveForcedRanks {C:1,B:2} -> résolu, ordre C,B',
+   resolveForcedRanks(['B', 'C'], { C: 1, B: 2 }).resolved === true &&
+   resolveForcedRanks(['B', 'C'], { C: 1, B: 2 }).ordered.join('') === 'CB'],
+  ['resolveForcedRanks {} (rien saisi) -> NON résolu',
+   resolveForcedRanks(['B', 'C'], {}).resolved === false]
+];
+forcedChecks.forEach(function (c) {
+  console.log((c[1] ? '  OK   ' : '  ÉCHEC') + ' : ' + c[0]);
+  if (!c[1]) { allOk = false; }
+});
+
 // --- Test de isRowComplete (gate du recalcul live onEdit) -------------------
 // Colonnes H..O : scoreA, scoreB, local, manches, retraits, type, suppTie.
 function rc(scoreA, scoreB, local, manches, retraits, type, suppTie) {

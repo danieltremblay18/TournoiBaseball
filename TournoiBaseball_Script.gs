@@ -43,7 +43,6 @@ var SHEET_HELP        = 'Aide';
 var SHEET_CONFIG      = 'Configuration';
 var SHEET_RESULTS     = { 'A': 'Résultats A', 'B': 'Résultats B' };
 var SHEET_STANDINGS   = { 'A': 'Classements A', 'B': 'Classements B' };
-var SHEET_INN_DETAIL  = 'Manches_Détail';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -182,16 +181,20 @@ function handleResultEdit(e) {
   var startCol = e.range.getColumn();
   var endCol   = startCol + e.range.getNumColumns() - 1;
 
-  // --- Édition de la colonne « Forcer 2e » (13) d'une feuille Classements ? ---
-  // L'admin force le représentant d'un pool au Meilleur 2e (Note 5) : on reconstruit
-  // le classement de la classe. buildStandingsSheet relit le forçage via
-  // readSecondOverrides AVANT de tout réécrire — aucune écriture dans Résultats.
+  // --- Édition d'une saisie admin/registraire d'une feuille Classements ? ---
+  // Deux colonnes déclenchent un recalcul du classement de la classe :
+  //   • col 13 « Forcer 2e » — représentant d'un pool au Meilleur 2e (Note 5) ;
+  //   • col 24 « Forcer rang » — ordre manuel de la Priorité 4 (Art. 42.11).
+  // buildStandingsSheet relit ces deux forçages (readSecondOverrides / readForcedRanks)
+  // AVANT de tout réécrire — aucune écriture dans Résultats.
   var standingsClasse = null;
   CLASSES.forEach(function (c) {
     if (SHEET_STANDINGS[c] === name) { standingsClasse = c; }
   });
   if (standingsClasse) {
-    if (startCol <= 13 && endCol >= 13) { recalcStandingsOnly(e, standingsClasse); }
+    var hitsForce2e   = (startCol <= 13 && endCol >= 13);
+    var hitsForceRank = (startCol <= 24 && endCol >= 24);
+    if (hitsForce2e || hitsForceRank) { recalcStandingsOnly(e, standingsClasse); }
     return;
   }
 
@@ -281,10 +284,11 @@ function handleResultEdit(e) {
 /**
  * Reconstruit UNIQUEMENT la feuille Classements d'une classe (sans toucher aux
  * colonnes calculées P..T des Résultats), sous verrou de document. Déclenché par un
- * forçage admin du « 2e de pool » (col 13 de Classements) : buildStandingsSheet relit
- * le forçage via readSecondOverrides AVANT de reconstruire, donc le « 2 » saisi est
- * pris en compte immédiatement. Acquisition défensive du verrou (cf. handleResultEdit).
- * Les écritures programmées de buildStandingsSheet ne redéclenchent pas le handler.
+ * forçage saisi dans Classements : « Forcer 2e » (col 13, Note 5) ou « Forcer rang »
+ * (col 24, Priorité 4). buildStandingsSheet relit ces forçages (readSecondOverrides /
+ * readForcedRanks) AVANT de reconstruire, donc la saisie est prise en compte
+ * immédiatement. Acquisition défensive du verrou (cf. handleResultEdit). Les écritures
+ * programmées de buildStandingsSheet ne redéclenchent pas le handler.
  */
 function recalcStandingsOnly(e, classe) {
   var lock = null;
@@ -305,7 +309,7 @@ function recalcStandingsOnly(e, classe) {
     var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
     var games = getGameResults(classe);
     buildStandingsSheet(ss, classe, games);
-    ss.toast('Classement ' + classe + ' mis à jour (2e forcé).', 'Tournoi Baseball', 3);
+    ss.toast('Classement ' + classe + ' mis à jour (forçage).', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
   }
@@ -351,7 +355,13 @@ function rebuildSheets(keepConfig) {
   }
   CLASSES.forEach(function (c) { createResultsSheet(ss, c); });
   CLASSES.forEach(function (c) { createStandingsSheet(ss, c); });
-  createInningDetailSheet(ss);
+
+  // Ancien onglet "Manches_Détail" (saisie du pointage par manche) : retiré du système
+  // — la Priorité 4 se calcule désormais sur papier puis se saisit dans la colonne
+  // "Forcer rang" des Classements. On supprime l'onglet s'il subsiste d'un ancien
+  // déploiement (nettoyage idempotent).
+  var oldInnDetail = ss.getSheetByName('Manches_Détail');
+  if (oldInnDetail) { ss.deleteSheet(oldInnDetail); }
 
   // Supprime la feuille par défaut "Sheet1" / "Feuille1" si elle est vide et inutilisée.
   removeDefaultSheet(ss);
@@ -584,37 +594,6 @@ function createStandingsSheet(ss, classe) {
   sheet.getRange(1, 1).setFontStyle('italic');
   for (var c = 1; c <= 12; c++) { sheet.setColumnWidth(c, 110); }
   sheet.setColumnWidth(2, 170);  // colonne Équipe plus large
-}
-
-/**
- * Feuille optionnelle Manches_Détail : permet d'entrer les scores par manche
- * pour départager la Priorité 4 (manches en avance) si nécessaire.
- */
-function createInningDetailSheet(ss) {
-  var sheet = getOrCreateSheet(ss, SHEET_INN_DETAIL);
-  sheet.clear();
-
-  var headers = ['Classe', 'Pool', 'Partie #', 'Équipe 1', 'Équipe 2'];
-  for (var m = 1; m <= TOTAL_INNINGS; m++) { headers.push('M' + m + ' Loc'); }
-  for (var m2 = 1; m2 <= TOTAL_INNINGS; m2++) { headers.push('M' + m2 + ' Vis'); }
-
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  styleHeader(sheet.getRange(1, 1, 1, headers.length));
-  sheet.setFrozenRows(1);
-
-  // Cellules de score par manche en jaune (saisie manuelle).
-  var nRows = POOLS.length * GAME_MATRIX.length * CLASSES.length;  // 36
-  sheet.getRange(2, 6, nRows, TOTAL_INNINGS * 2).setBackground(COLOR_INPUT);
-
-  sheet.getRange(2, 1).setNote(
-    'Feuille optionnelle, pour les vérifications MANUELLES de bris d\'égalité. ' +
-    'Deux usages :\n' +
-    '1) Priorité 4 (manches en avance) : saisir le score cumulatif (ou par manche) de ' +
-    'chaque équipe afin de compter les manches complètes où elle menait.\n' +
-    '2) Note 4 (Art. 42.11) — parties allées en manches SUPPLÉMENTAIRES : désormais traitée ' +
-    'AUTOMATIQUEMENT dès que le "Pointage régl. (suppl.)" (col. O des feuilles Résultats) est ' +
-    'saisi — les ratios RD/RO excluent alors les supplémentaires. Cette feuille n\'est plus ' +
-    'requise pour la Note 4, sauf pour une vérification manuelle ponctuelle.');
 }
 
 /**
@@ -872,7 +851,9 @@ function createHelpSheet(ss) {
     '• "RO x > y" — ratios défensifs égaux, départagées par le ratio OFFENSIF (Priorité 3 ; ' +
     'le plus haut gagne).  • "⚠ Manuel (P4)" — ratios défensif ET offensif identiques : le ' +
     'système ne peut pas trancher (Priorité 4 = "manches avec l\'avance au pointage", qui ' +
-    'exige la feuille de pointage). Réglez ce cas à la main via la feuille Manches_Détail.');
+    'exige la feuille de pointage). Calculez l\'ordre à la main sur les feuilles de pointage ' +
+    'papier, puis saisissez-le dans la colonne "Forcer rang" du tableau de bris d\'égalité : ' +
+    'le critère passe alors à "🔒 Forcé (P4)".');
   addText(
     'Les RD/RO de ce bloc sont calculés exactement comme par le moteur de bris : sur la ' +
     'portée TÊTE-À-TÊTE entre équipes à égalité pour un pool (Étape A), et sur TOUTES les ' +
@@ -1019,43 +1000,11 @@ function generateGames() {
     }
   });
 
-  // Remplit aussi la feuille Manches_Détail (liste des matchs).
-  fillInningDetailGames(ss);
-
   SpreadsheetApp.getActiveSpreadsheet().toast(
     'Matchs générés à partir de la Configuration (' + schedule.length + ' parties). ' +
     'Indiquez l\'Équipe Locale et les scores au moment de saisir chaque résultat, ' +
     'puis "Mettre à jour les classements".',
     'Tournoi Baseball', 6);
-}
-
-/**
- * Remplit la feuille Manches_Détail avec la liste des matchs (sans scores),
- * à partir de l'horaire de la feuille Configuration.
- */
-function fillInningDetailGames(ss) {
-  var sheet = ss.getSheetByName(SHEET_INN_DETAIL);
-  if (!sheet) { return; }
-
-  var schedule = readScheduleRows(ss);
-  schedule.sort(function (a, b) {
-    if (a.classe !== b.classe) { return a.classe < b.classe ? -1 : 1; }
-    if (a.pool !== b.pool) { return a.pool - b.pool; }
-    return Number(a.partieNum) - Number(b.partieNum);
-  });
-
-  var nCols = 5 + TOTAL_INNINGS * 2;
-  var maxRows = sheet.getMaxRows();
-  if (maxRows > 1) { sheet.getRange(2, 1, maxRows - 1, nCols).clearContent(); }
-
-  var rows = schedule.map(function (m) {
-    var row = [m.classe, m.pool, m.partieNum, m.teamA, m.teamB];
-    for (var k = 0; k < TOTAL_INNINGS * 2; k++) { row.push(''); }
-    return row;
-  });
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, nCols).setValues(rows);
-  }
 }
 
 // ============================================================================
@@ -1551,7 +1500,7 @@ function computeTeamStats(team, games, excludeForfaitRatios) {
  * Classement d'un pool (Étape A). Trie les 4 équipes avec bris d'égalité.
  * @return {Array} stats triées (1er en tête) avec champ .rank
  */
-function calculatePoolStandings(games, teams) {
+function calculatePoolStandings(games, teams, forced) {
   // Stats globales du pool (pour affichage).
   var stats = teams.map(function (t) {
     return computeTeamStats(t, games, false);
@@ -1559,7 +1508,8 @@ function calculatePoolStandings(games, teams) {
 
   // Tri avec bris d'égalité — Étape A utilise seulement les parties directes
   // entre équipes à égalité (géré dans tiebreaker via useAllGames=false).
-  var ordered = orderTeams(teams, games, false);
+  // `forced` = override « Forcer rang » de ce pool (Priorité 4, voir applyPriorities).
+  var ordered = orderTeams(teams, games, false, forced || {});
 
   // Associe le rang à chaque équipe.
   var rankByTeam = {};
@@ -1579,8 +1529,8 @@ function calculatePoolStandings(games, teams) {
  *                               chaque équipe). false => Étape A (tête-à-tête).
  * @return {Array} équipes ordonnées
  */
-function calculateStep(teams, games, useAllGames) {
-  return orderTeams(teams, games, useAllGames);
+function calculateStep(teams, games, useAllGames, forced) {
+  return orderTeams(teams, games, useAllGames, forced || {});
 }
 
 /**
@@ -1592,13 +1542,14 @@ function calculateStep(teams, games, useAllGames) {
  * @param {Array}  teams
  * @param {Array}  games        parties disponibles
  * @param {boolean} useAllGames true = B/C (toutes parties de pool), false = A (direct)
+ * @param {Object} [forced]     rangs forcés « Forcer rang » (Priorité 4), { team: number }
  * @return {Array} noms ordonnés
  */
-function orderTeams(teams, games, useAllGames) {
+function orderTeams(teams, games, useAllGames, forced) {
   if (teams.length <= 1) { return teams.slice(); }
 
   // Trie l'ensemble via tiebreaker (qui gère récursivement les sous-égalités).
-  return tiebreaker(teams.slice(), games, useAllGames);
+  return tiebreaker(teams.slice(), games, useAllGames, forced || {});
 }
 
 /**
@@ -1620,9 +1571,10 @@ function orderTeams(teams, games, useAllGames) {
  * @param {Array}  tiedTeams    équipes à départager
  * @param {Array}  games        parties disponibles
  * @param {boolean} useAllGames true = B/C, false = A (tête-à-tête direct)
+ * @param {Object} [forced]     rangs forcés « Forcer rang » (Priorité 4), { team: number }
  * @return {Array} équipes ordonnées (meilleure en tête)
  */
-function tiebreaker(tiedTeams, games, useAllGames) {
+function tiebreaker(tiedTeams, games, useAllGames, forced) {
   if (tiedTeams.length <= 1) { return tiedTeams.slice(); }
 
   // Portée fixée pour CETTE passe (Priorités 1 à 3 calculées dessus).
@@ -1632,7 +1584,7 @@ function tiebreaker(tiedTeams, games, useAllGames) {
       })
     : headToHeadGames(tiedTeams, games);
 
-  return applyPriorities(tiedTeams, relevantGames, useAllGames, 1);
+  return applyPriorities(tiedTeams, relevantGames, useAllGames, 1, forced || {});
 }
 
 /**
@@ -1655,8 +1607,8 @@ function tiebreaker(tiedTeams, games, useAllGames) {
  *    le drapeau de vérification manuelle (__needsManualCheck) et on conserve un
  *    ordre alphabétique provisoire.
  *  - Le « recommencer à la priorité 1 » de la Note 2 n'intervient qu'APRÈS la
- *    Priorité 4 : il est donc hors de portée du code (résolu manuellement par le
- *    marqueur via la feuille Manches_Détail).
+ *    Priorité 4 : il est donc hors de portée du code (résolu par le registraire via
+ *    la colonne « Forcer rang » du tableau de bris d'égalité — resolveForcedRanks).
  *
  * Terminaison : la « continuation » réduit toujours strictement la taille du
  * groupe ; sinon on s'arrête au drapeau Priorité 4.
@@ -1665,10 +1617,12 @@ function tiebreaker(tiedTeams, games, useAllGames) {
  * @param {Array}   relevantGames portée fixée pour la passe (P1..P3 dessus)
  * @param {boolean} useAllGames  true = B/C, false = A
  * @param {number}  startP       priorité de départ (1..3)
+ * @param {Object} [forced]      rangs forcés « Forcer rang » (Priorité 4), { team: number }
  * @return {Array} équipes ordonnées (meilleure en tête)
  */
-function applyPriorities(group, relevantGames, useAllGames, startP) {
+function applyPriorities(group, relevantGames, useAllGames, startP, forced) {
   if (group.length <= 1) { return group.slice(); }
+  forced = forced || {};
 
   // Métriques par priorité — TOUTES calculées sur la même `relevantGames`.
   //   P1 : différentiel V-D (plus haut = meilleur)
@@ -1696,7 +1650,7 @@ function applyPriorities(group, relevantGames, useAllGames, startP) {
       var ordered = [];
       var manual = false;
       groups.forEach(function (sg) {
-        var sub = applyPriorities(sg, relevantGames, useAllGames, i + 1);
+        var sub = applyPriorities(sg, relevantGames, useAllGames, i + 1, forced);
         if (sub.__needsManualCheck) { manual = true; }
         sub.forEach(function (t) { ordered.push(t); });
       });
@@ -1707,15 +1661,58 @@ function applyPriorities(group, relevantGames, useAllGames, startP) {
 
   // Priorités startP..3 (ratios automatisables) épuisées sans séparation.
   // La priorité suivante est la PRIORITÉ 4 (« manches avec l'avance au pointage »,
-  // Art. 42.11) : elle exige la feuille de pointage -> non automatisable. On lève
-  // le drapeau de vérification manuelle et on conserve un ordre alphabétique
-  // provisoire. (Le « recommencer à la priorité 1 » de la Note 2 vient APRÈS la
-  // Priorité 4 -> hors de portée du code, résolu à la main.)
-  Logger.log('AVERTISSEMENT : Priorité 4 atteinte pour : ' + group.join(', ') +
-             '. Vérification manuelle requise - Voir feuille Manches_Détail.');
-  var warned = group.slice().sort();
-  warned.__needsManualCheck = true;
-  return warned;
+  // Art. 42.11) : elle exige la feuille de pointage -> non automatisable par le code.
+  // Le registraire la calcule à la main (feuilles de pointage papier) et saisit
+  // l'ordre obtenu via la colonne « Forcer rang » du tableau de bris d'égalité.
+  // resolveForcedRanks applique cet override : si l'ordre saisi est strict et non
+  // ambigu, le sous-groupe est RÉSOLU (pas de drapeau) ; sinon on conserve un ordre
+  // provisoire et on lève __needsManualCheck. (Le « recommencer à la priorité 1 » de
+  // la Note 2 vient APRÈS la Priorité 4 -> hors de portée du code.)
+  var res = resolveForcedRanks(group, forced);
+  if (!res.resolved) {
+    Logger.log('AVERTISSEMENT : Priorité 4 atteinte pour : ' + group.join(', ') +
+               '. Saisir l\'ordre dans la colonne « Forcer rang » du bris d\'égalité.');
+    res.ordered.__needsManualCheck = true;
+  }
+  return res.ordered;
+}
+
+/**
+ * Applique l'override « Forcer rang » (Priorité 4) à un sous-groupe d'équipes que
+ * le moteur n'a pas pu départager. Source de vérité PARTAGÉE entre le moteur de tri
+ * (applyPriorities) et le rendu (writeTiebreakTable) pour ne jamais diverger.
+ *
+ * Ordre : les équipes AVEC un numéro forcé d'abord (numéro croissant), puis celles
+ * SANS numéro (alphabétique). Seul l'ordre RELATIF compte (« 1,3 » == « 2,3 »).
+ *
+ * Résolu (ordre strict, non ambigu) ssi : aucun numéro en double ET au plus UNE
+ * équipe sans numéro (la seule sans numéro est forcément dernière). Sinon, l'ordre
+ * retourné reste provisoire et l'appelant garde le drapeau de vérification manuelle.
+ *
+ * @param {Array}  teams   sous-groupe encore à égalité (>= 2 équipes en pratique)
+ * @param {Object} forced  map { nomÉquipe: number } pour la portée courante
+ * @return {{ordered: Array, resolved: boolean}}
+ */
+function resolveForcedRanks(teams, forced) {
+  forced = forced || {};
+  var ordered = teams.slice().sort(function (a, b) {
+    var fa = forced[a], fb = forced[b];
+    var hasA = typeof fa === 'number', hasB = typeof fb === 'number';
+    if (hasA && hasB) { return fa - fb; }      // deux numéros : croissant
+    if (hasA) { return -1; }                    // numéroté avant non-numéroté
+    if (hasB) { return 1; }
+    return a < b ? -1 : (a > b ? 1 : 0);        // deux sans numéro : alphabétique
+  });
+
+  var nums = teams.map(function (t) { return forced[t]; })
+                  .filter(function (x) { return typeof x === 'number'; });
+  var seen = {};
+  var hasDup = false;
+  nums.forEach(function (x) { if (seen[x]) { hasDup = true; } seen[x] = true; });
+  var blanks = teams.length - nums.length;
+  var resolved = !hasDup && blanks <= 1;
+
+  return { ordered: ordered, resolved: resolved };
 }
 
 /**
@@ -1855,6 +1852,49 @@ function readSecondOverrides(sheet) {
 }
 
 /**
+ * Relit, AVANT la reconstruction de la feuille Classements, les rangs forcés saisis
+ * par le registraire dans la colonne « Forcer rang » (col 24) des tableaux de bris
+ * d'égalité — pour résoudre la Priorité 4 (Art. 42.11) calculée à la main.
+ *
+ * Chaque rang est rattaché à sa PORTÉE de bris (le tri concerné) en suivant les
+ * titres de section de la colonne A, alignés ligne par ligne avec le bloc bris :
+ *   « POOL p — … » -> scope "A"+p (Étape A du pool) ; « … Étape C » -> "C" ;
+ *   « … Étape B » -> "B". Une équipe peut figurer dans 2 tableaux (son pool ET une
+ * Étape B/C) ; le scope les distingue. Clés internes = nom d'équipe (stable pendant
+ * le tournoi), comme readSecondOverrides — survit au sheet.clear() qui suit.
+ *
+ * @param {Sheet} sheet  feuille Classements existante (peut être vierge)
+ * @return {Object} { scopeId: { nomÉquipe: number } }
+ */
+function readForcedRanks(sheet) {
+  var map = {};
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 24) { return map; }   // pas de colonne « Forcer rang »
+  var values = sheet.getRange(1, 1, lastRow, 24).getValues();
+  var scope = null;
+  values.forEach(function (r) {
+    var aText = String(r[0] || '').trim();           // col A = titres de section
+    if (aText) {
+      var m = aText.match(/^POOL\s+(\d+)/);
+      if (m) { scope = 'A' + m[1]; }
+      else if (aText.indexOf('Étape C') !== -1) { scope = 'C'; }
+      else if (aText.indexOf('Étape B') !== -1) { scope = 'B'; }
+    }
+    if (!scope) { return; }
+    var team = String(r[14] || '').trim();           // col 15 = Équipe du bloc bris
+    if (team === '') { return; }
+    var raw = r[23];                                  // col 24 = Forcer rang
+    var rank = Number(raw);
+    if (raw !== '' && raw !== null && !isNaN(rank) && rank > 0) {
+      if (!map[scope]) { map[scope] = {}; }
+      map[scope][team] = rank;
+    }
+  });
+  return map;
+}
+
+/**
  * Construit la feuille Classements pour une classe : 3 pools + Étape C + Étape B.
  */
 function buildStandingsSheet(ss, classe, games) {
@@ -1864,6 +1904,11 @@ function buildStandingsSheet(ss, classe, games) {
   // Forçages admin du « 2e de pool » (col 13) — relus AVANT l'effacement pour survivre
   // à la reconstruction ; réappliqués et réaffichés par writePoolSection.
   var overrideByTeam = readSecondOverrides(sheet);
+
+  // Rangs forcés « Forcer rang » (col 24, Priorité 4) — relus AVANT l'effacement, par
+  // portée de bris (A+pool / C / B) ; réappliqués par le moteur et réaffichés par
+  // writeTiebreakTable.
+  var forcedRanks = readForcedRanks(sheet);
 
   sheet.clear();
   clearDataValidations(sheet);
@@ -1889,7 +1934,8 @@ function buildStandingsSheet(ss, classe, games) {
     var teams = teamsByPool[p] || [];
     var poolGames = games.filter(function (g) { return g.pool === p; });
 
-    var standings = calculatePoolStandings(poolGames, teams);
+    var forcedPool = forcedRanks['A' + p] || {};
+    var standings = calculatePoolStandings(poolGames, teams, forcedPool);
 
     // Représentant « 2e » de ce pool pour le Meilleur 2e (Étape B), forçage admin pris
     // en compte (Note 5 / forfaits) : par défaut le rang 2, sinon l'équipe forcée.
@@ -1897,7 +1943,7 @@ function buildStandingsSheet(ss, classe, games) {
     var secondRep = resolveSecondRepresentative(standings, markedInPool);
 
     row = writePoolSection(sheet, row, classe, p, standings, poolGames,
-                           markedInPool, secondRep);
+                           markedInPool, secondRep, forcedPool);
 
     standings.forEach(function (s) {
       poolStatsByTeam[s.team] = s;
@@ -1910,21 +1956,23 @@ function buildStandingsSheet(ss, classe, games) {
 
   // -------- SECTION 4 : Étape C — classement des 1ers --------
   var firstTeams = firsts.map(function (f) { return f.team; });
-  var orderedFirsts = calculateStep(firstTeams, games, true);
+  var forcedC = forcedRanks['C'] || {};
+  var orderedFirsts = calculateStep(firstTeams, games, true, forcedC);
   row = writeAdvancementSection(
     sheet, row, classe,
     'SECTION 4 — CLASSEMENT DES 1ers (Positions 1-2-3) — Étape C',
-    orderedFirsts, games, poolStatsByTeam, firsts, 1);
+    orderedFirsts, games, poolStatsByTeam, firsts, 1, forcedC);
 
   row += 1;
 
   // -------- SECTION 5 : Étape B — meilleur 2e (position 4) --------
   var secondTeams = seconds.map(function (s) { return s.team; });
-  var orderedSeconds = calculateStep(secondTeams, games, true);
+  var forcedB = forcedRanks['B'] || {};
+  var orderedSeconds = calculateStep(secondTeams, games, true, forcedB);
   row = writeAdvancementSection(
     sheet, row, classe,
     'SECTION 5 — MEILLEUR 2e (Position 4) — Étape B',
-    orderedSeconds, games, poolStatsByTeam, seconds, 4);
+    orderedSeconds, games, poolStatsByTeam, seconds, 4, forcedB);
 
   row += 1;
 
@@ -1932,9 +1980,10 @@ function buildStandingsSheet(ss, classe, games) {
   writeSemifinalSummary(sheet, row, classe, orderedFirsts, orderedSeconds);
 
   // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-23 =
-  // bloc « bris d'égalité » (Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif).
+  // bloc « bris d'égalité » (Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif) ;
+  // 24 = « Forcer rang » (saisie Priorité 4).
   var widths = [55, 170, 45, 45, 45, 80, 80, 75, 75, 105, 105, 120, 70,
-                20, 160, 50, 50, 50, 60, 60, 65, 65, 175];
+                20, 160, 50, 50, 50, 60, 60, 65, 65, 175, 80];
   for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
   sheet.setFrozenRows(1);
 }
@@ -1989,8 +2038,10 @@ var ADV_HEADER_NOTES = {
   9:  'PC — Points CONTRE (sur toutes les parties de pool).',
   10: 'NOTE — Avertissements : « 🔒 2e forcé par le registraire » si cette équipe a été désignée ' +
       'manuellement comme 2e de son pool (colonne « Forcer 2e », Note 5 / forfaits) au lieu du 2e ' +
-      'automatique ; « Vérif. manuelle » si la Priorité 4 (« manches en avance », non automatisée) ' +
-      'est atteinte ; « Note 4 appliquée (suppl.) » si une partie de l\'équipe est allée en ' +
+      'automatique ; « ⚠ Vérif. manuelle (P4) » si la Priorité 4 (« manches en avance », non ' +
+      'automatisée) est atteinte et pas encore résolue — saisir l\'ordre dans la colonne ' +
+      '« Forcer rang » du tableau de bris d\'égalité à droite ; « 🔒 Rang forcé (P4) » une fois ' +
+      'cet ordre saisi ; « Note 4 appliquée (suppl.) » si une partie de l\'équipe est allée en ' +
       'supplémentaires et que la Note 4 a été appliquée ; « pointage régl. manquant » si une ' +
       'partie supplémentaire n\'a pas son Pointage régl. (col. O) saisi.'
 };
@@ -2021,6 +2072,7 @@ function gameIsSupp(g) {
 // (Col. 13 = mince séparateur du tableau de gauche ; col. 14 = espace.)
 var TIEBREAK_START_COL = 15;
 var TIEBREAK_NCOLS = 9;   // Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif
+                          // (+ 1 colonne « Forcer rang » ajoutée par writeTiebreakTable)
 
 // Info-bulle de la colonne « Critère décisif » du bloc bris.
 var TIEBREAK_CRIT_NOTE =
@@ -2029,8 +2081,23 @@ var TIEBREAK_CRIT_NOTE =
   'ont la MÊME fiche V-D (Priorité 1), donc le départage vient de : « RD » (ratio ' +
   'défensif PC/MD, le plus bas gagne — Priorité 2), « RO » (ratio offensif PP/MO, ' +
   'le plus haut gagne — Priorité 3) ou « Manuel (P4) » (manches avec l\'avance au ' +
-  'pointage — non automatisable, à régler via la feuille Manches_Détail). Les ratios ' +
-  'sont en base RÉGULIÈRE : les manches supplémentaires sont exclues (Note 4).';
+  'pointage — non automatisable). En P4, calculez l\'ordre à la main (feuilles de ' +
+  'pointage papier) puis saisissez-le dans la colonne « Forcer rang » : le critère ' +
+  'passe alors à « 🔒 Forcé (P4) ». Les ratios sont en base RÉGULIÈRE : les manches ' +
+  'supplémentaires sont exclues (Note 4).';
+
+// Info-bulle de la colonne « Forcer rang » (saisie de la Priorité 4 par le registraire).
+var FORCE_RANK_NOTE =
+  'FORCER RANG (Priorité 4, Art. 42.11) — À remplir UNIQUEMENT quand le critère ' +
+  'décisif affiche « ⚠ Manuel (P4) » : le système ne peut pas départager ces équipes ' +
+  '(il faudrait les manches avec l\'avance au pointage, qu\'il n\'a pas). Calculez ' +
+  'l\'ordre à la main sur les feuilles de pointage papier, puis saisissez un numéro ' +
+  'd\'ordre (1 = meilleur, 2, 3 …) sur chaque équipe à égalité. Seul l\'ORDRE RELATIF ' +
+  'compte (« 1,3 » équivaut à « 1,2 »). Le classement se résout dès qu\'aucun numéro ' +
+  'n\'est en double et qu\'au plus une équipe reste sans numéro. Cette saisie a ' +
+  'PRÉSÉANCE là où le système n\'a pas tranché (P4 seulement) ; un numéro sur une ' +
+  'équipe déjà départagée par RD/RO est ignoré. Le recalcul est automatique (si la ' +
+  'mise à jour auto est activée) ; sinon lancer « Mettre à jour les classements ».';
 
 /**
  * Détermine le critère (Art. 42.11) qui classe l'équipe `hi` (mieux classée)
@@ -2151,12 +2218,17 @@ function roCalcNoteFull(s) {
  * @param {Array}   games        parties disponibles (pool pour A ; classe pour B/C)
  * @param {Array}   orderedNames ordre final résolu (noms d'équipes, meilleur en tête)
  * @param {boolean} useAllGames  true = Étapes B/C, false = Étape A (tête-à-tête)
+ * @param {Object}  forced       rangs forcés « Forcer rang » (Priorité 4) de la portée
  * @return {number} dernière ligne écrite + 1
  */
-function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllGames) {
-  var c0 = TIEBREAK_START_COL;
-  var n  = TIEBREAK_NCOLS;
-  var row = startRow;
+function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllGames, forced) {
+  forced = forced || {};
+  var c0   = TIEBREAK_START_COL;
+  var n    = TIEBREAK_NCOLS;        // 9 colonnes de stats
+  var nAll = n + 1;                 // + colonne « Forcer rang » (Priorité 4)
+  var fCol = c0 + n;                // colonne « Forcer rang » (= 24)
+  var P4   = '⚠ Manuel (P4)';       // libellé renvoyé par decisiveCriterion en P4
+  var row  = startRow;
 
   // Portée fixée — IDENTIQUE à tiebreaker() pour la même passe.
   var relevantGames = useAllGames
@@ -2184,7 +2256,7 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
 
   // Titre du bloc.
   var scopeLabel = useAllGames ? 'toutes parties de pool' : 'tête-à-tête';
-  sheet.getRange(row, c0, 1, n).merge();
+  sheet.getRange(row, c0, 1, nAll).merge();
   sheet.getRange(row, c0).setValue('BRIS D\'ÉGALITÉ (' + scopeLabel + ')')
     .setFontWeight('bold').setBackground(COLOR_SECTION)
     .setHorizontalAlignment('center');
@@ -2192,7 +2264,7 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
 
   // Pas d'égalité : message court (confirme que le moteur a vérifié).
   if (tieGroups.length === 0) {
-    sheet.getRange(row, c0, 1, n).merge();
+    sheet.getRange(row, c0, 1, nAll).merge();
     sheet.getRange(row, c0)
       .setValue('Aucune égalité à départager — rangs établis par la fiche V-D.')
       .setWrap(true).setBackground(COLOR_CALC).setVerticalAlignment('top');
@@ -2200,21 +2272,49 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
   }
 
   // En-têtes. PP/PC/MO/MD sont en base RÉGULIÈRE (Note 4) — comme RD/RO ici —
-  // pour que RD = PC ÷ MD tombe juste dans ce tableau de bris.
-  var headers = ['Équipe', 'V-D', 'PP', 'PC', 'MO', 'MD', 'RD', 'RO', 'Critère décisif'];
-  sheet.getRange(row, c0, 1, n).setValues([headers]);
-  styleHeader(sheet.getRange(row, c0, 1, n));
+  // pour que RD = PC ÷ MD tombe juste dans ce tableau de bris. La 10e (« Forcer
+  // rang ») est une saisie du registraire pour la Priorité 4.
+  var headers = ['Équipe', 'V-D', 'PP', 'PC', 'MO', 'MD', 'RD', 'RO',
+                 'Critère décisif', 'Forcer rang'];
+  sheet.getRange(row, c0, 1, nAll).setValues([headers]);
+  styleHeader(sheet.getRange(row, c0, 1, nAll));
   sheet.getRange(row, c0 + 8).setNote(TIEBREAK_CRIT_NOTE);
+  sheet.getRange(row, fCol).setNote(FORCE_RANK_NOTE);
   row++;
 
   // Un sous-bloc par groupe à égalité (séparés par une ligne vide).
   tieGroups.forEach(function (grp, gi) {
     if (gi > 0) { row++; }   // espace entre groupes
+
+    // Détecte les SOUS-GROUPES Priorité 4 du groupe : suites d'équipes consécutives
+    // dont le moteur n'a pu départager aucun couple (decisiveCriterion = P4). Ce sont
+    // les seules lignes où « Forcer rang » est saisissable, et où son override agit.
+    var runIdOf = {};      // équipe -> id de sous-groupe P4
+    var p4runs = [];       // [[équipes], ...]
+    grp.forEach(function (t, i) {
+      if (i === 0) { return; }
+      if (decisiveCriterion(statByTeam[grp[i - 1]], statByTeam[t]) === P4) {
+        var prev = grp[i - 1];
+        if (runIdOf[prev] === undefined) {
+          runIdOf[prev] = p4runs.length;
+          p4runs.push([prev]);
+        }
+        runIdOf[t] = runIdOf[prev];
+        p4runs[runIdOf[t]].push(t);
+      }
+    });
+    var runResolved = p4runs.map(function (rn) {
+      return resolveForcedRanks(rn, forced).resolved;
+    });
+
     grp.forEach(function (t, i) {
       var s  = statByTeam[t];
       var rd = (s.defInn > 0 && isFinite(s.raRatio)) ? s.raRatio.toFixed(3) : '—';
       var ro = (s.offInn > 0) ? s.rsRatio.toFixed(3) : '—';
       var crit = (i === 0) ? '—' : decisiveCriterion(statByTeam[grp[i - 1]], s);
+      var inP4 = runIdOf[t] !== undefined;
+      // En P4 résolue par override, on annonce « 🔒 Forcé (P4) » au lieu de « Manuel ».
+      if (crit === P4 && inP4 && runResolved[runIdOf[t]]) { crit = '🔒 Forcé (P4)'; }
       // PP/PC/MO/MD en base RÉGULIÈRE (Note 4) : ce sont les chiffres exacts qui
       // produisent les ratios RD/RO du bris d'égalité.
       sheet.getRange(row, c0, 1, n).setValues([[
@@ -2224,6 +2324,16 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
       ]]);
       sheet.getRange(row, c0, 1, n).setBackground(COLOR_CALC).setWrap(true)
         .setVerticalAlignment('top');
+      // Colonne « Forcer rang » : saisissable (jaune) uniquement sur les lignes P4 ;
+      // pré-remplie avec la valeur relue pour survivre à la reconstruction.
+      var fCell = sheet.getRange(row, fCol);
+      if (inP4) {
+        fCell.setBackground(COLOR_INPUT).setHorizontalAlignment('center')
+             .setVerticalAlignment('top');
+        fCell.setValue(typeof forced[t] === 'number' ? forced[t] : '');
+      } else {
+        fCell.setBackground(COLOR_CALC);
+      }
       // Calcul détaillé au survol des cellules RD / RO.
       sheet.getRange(row, c0 + 6).setNote(rdCalcNote(s));
       sheet.getRange(row, c0 + 7).setNote(roCalcNote(s));
@@ -2233,7 +2343,7 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
 
   // Note 4 si une partie de la portée est allée en supplémentaires.
   if (relevantGames.some(gameIsSupp)) {
-    sheet.getRange(row, c0, 1, n).merge();
+    sheet.getRange(row, c0, 1, nAll).merge();
     sheet.getRange(row, c0)
       .setValue('ℹ Manches supplémentaires exclues des ratios RD/RO (Note 4, Art. 42.11).')
       .setWrap(true).setBackground(COLOR_SECOND).setVerticalAlignment('top');
@@ -2248,11 +2358,13 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
  * @param {Array}  poolGames    parties du pool — pour signaler les manches supplémentaires.
  * @param {Array}  markedInPool noms des équipes du pool marquées « 2 » (forçage admin du 2e).
  * @param {Object} secondRep    résultat de resolveSecondRepresentative (team/forced/warning).
+ * @param {Object} forced       rangs forcés « Forcer rang » de ce pool (Priorité 4).
  */
 function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
-                          markedInPool, secondRep) {
+                          markedInPool, secondRep, forced) {
   markedInPool = markedInPool || [];
   secondRep = secondRep || { team: '', forced: false, warning: '' };
+  forced = forced || {};
   var row = startRow;
 
   // Titre de section.
@@ -2364,7 +2476,7 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
   // chevauchement vertical avec la section suivante.
   var orderedNames = standings.map(function (s) { return s.team; });
   var brisRow = writeTiebreakTable(sheet, startRow, orderedNames, poolGames,
-                                   orderedNames, false);
+                                   orderedNames, false, forced);
 
   return Math.max(row, brisRow);
 }
@@ -2372,9 +2484,11 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
 /**
  * Écrit une section d'avancement (Étape B ou C). Retourne la prochaine ligne.
  * @param {number} basePosition  position de départ (1 pour Étape C, 4 pour Étape B)
+ * @param {Object} forced        rangs forcés « Forcer rang » de cette portée (C ou B).
  */
 function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
-                                 games, poolStatsByTeam, poolInfo, basePosition) {
+                                 games, poolStatsByTeam, poolInfo, basePosition, forced) {
+  forced = forced || {};
   var row = startRow;
 
   // Titre.
@@ -2413,11 +2527,15 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
     });
     var st = computeTeamStats(team, teamGames, true);
 
-    // Note : forçage admin du 2e (Note 5), vérif. manuelle Priorité 4 et/ou marqueur
-    // manches supplémentaires (Note 4) — peuvent coexister.
+    // Note : forçage admin du 2e (Note 5), Priorité 4 (à régler / résolue via « Forcer
+    // rang ») et/ou marqueur manches supplémentaires (Note 4) — peuvent coexister.
     var noteParts = [];
     if (forcedTeam[team]) { noteParts.push('🔒 2e forcé par le registraire (Note 5)'); }
-    if (needsManual) { noteParts.push('⚠ Vérif. manuelle (Manches_Détail)'); }
+    if (needsManual) {
+      noteParts.push('⚠ Vérif. manuelle (P4) — saisir « Forcer rang »');
+    } else if (typeof forced[team] === 'number') {
+      noteParts.push('🔒 Rang forcé (P4)');
+    }
     if (teamGames.some(function (g) { return g.suppNeedsTie; })) {
       noteParts.push('⚠ Suppl. : pointage régl. manquant (col. O)');
     } else if (teamGames.some(gameIsSupp)) {
@@ -2451,7 +2569,7 @@ function writeAdvancementSection(sheet, startRow, classe, title, orderedTeams,
   // Bloc « bris d'égalité » à droite (Étapes B/C = toutes les parties de pool de
   // chaque équipe). Aligné sur le titre ; max des deux hauteurs.
   var teamsArr = orderedTeams.slice();
-  var brisRow = writeTiebreakTable(sheet, startRow, teamsArr, games, teamsArr, true);
+  var brisRow = writeTiebreakTable(sheet, startRow, teamsArr, games, teamsArr, true, forced);
 
   return Math.max(row, brisRow);
 }
@@ -2844,8 +2962,7 @@ function reorderSheets(ss) {
     SHEET_HELP,
     SHEET_CONFIG,
     SHEET_RESULTS['A'], SHEET_RESULTS['B'],
-    SHEET_STANDINGS['A'], SHEET_STANDINGS['B'],
-    SHEET_INN_DETAIL
+    SHEET_STANDINGS['A'], SHEET_STANDINGS['B']
   ];
   order.forEach(function (name, idx) {
     var s = ss.getSheetByName(name);
