@@ -94,6 +94,8 @@ function onOpen() {
     .addItem('⚡ Activer la mise à jour auto', 'installTriggers')
     .addItem('Effacer les résultats', 'clearResults')
     .addSeparator()
+    .addItem('📦 Exporter Résultats + Classements (ZIP de TSV)', 'exportSheetsToZip')
+    .addSeparator()
     .addItem('🧪 Simuler résultats de match', 'simulateMatchResults')
     .addToUi();
 }
@@ -2743,6 +2745,70 @@ function getOrCreateSheet(ss, name) {
   var sheet = ss.getSheetByName(name);
   if (!sheet) { sheet = ss.insertSheet(name); }
   return sheet;
+}
+
+/**
+ * Exporte les deux feuilles « Résultats » et les deux feuilles « Classements »
+ * en TSV (4 fichiers) regroupés dans un seul ZIP, déposé dans le Google Drive
+ * du propriétaire. Une boîte de dialogue affiche le lien vers le fichier.
+ *
+ * Les valeurs exportées sont les valeurs AFFICHÉES (getDisplayValues) — donc
+ * les fractions de manches, scores, etc. tels que vus à l'écran. Les feuilles
+ * absentes sont signalées dans le message final sans bloquer l'export.
+ */
+function exportSheetsToZip() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  var names = [
+    SHEET_RESULTS['A'], SHEET_RESULTS['B'],
+    SHEET_STANDINGS['A'], SHEET_STANDINGS['B']
+  ];
+
+  var blobs = [];
+  var missing = [];
+  names.forEach(function (name) {
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) { missing.push(name); return; }
+    var fileName = name.replace(/[\/\\:*?"<>|]/g, '_') + '.tsv';
+    // BOM UTF-8 en tête pour qu'Excel détecte correctement les accents.
+    blobs.push(Utilities.newBlob('﻿' + sheetToTsv(sheet),
+                                 'text/tab-separated-values', fileName));
+  });
+
+  if (blobs.length === 0) {
+    ui.alert('Export TSV',
+             'Aucune des feuilles à exporter n\'existe encore.\n\n' +
+             'Lancez d\'abord « Initialiser les feuilles » puis « Générer les matchs ».',
+             ui.ButtonSet.OK);
+    return;
+  }
+
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(),
+                                   'yyyy-MM-dd_HH-mm');
+  var zipName = 'TournoiBaseball_export_' + stamp + '.zip';
+  var zipBlob = Utilities.zip(blobs, zipName);
+  var file = DriveApp.createFile(zipBlob);
+
+  var msg = 'ZIP créé dans votre Google Drive :\n\n' + file.getName() +
+            '\n\nLien : ' + file.getUrl();
+  if (missing.length) {
+    msg += '\n\n⚠ Feuilles introuvables (non exportées) : ' + missing.join(', ');
+  }
+  ui.alert('Export TSV', msg, ui.ButtonSet.OK);
+}
+
+/**
+ * Convertit toute la plage de données d'une feuille en TSV à partir des valeurs
+ * affichées. Les tabulations et sauts de ligne contenus dans une cellule sont
+ * remplacés par une espace pour ne pas corrompre la structure du TSV.
+ */
+function sheetToTsv(sheet) {
+  var values = sheet.getDataRange().getDisplayValues();
+  return values.map(function (row) {
+    return row.map(function (cell) {
+      return String(cell).replace(/[\t\r\n]+/g, ' ');
+    }).join('\t');
+  }).join('\n');
 }
 
 /** Applique le style d'en-tête à une plage. */
