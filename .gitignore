@@ -4,3 +4,6 @@
 # Divers OS / éditeurs
 .DS_Store
 Thumbs.db
+
+# Dossier de travail temporaire (Claude)
+claude-temp-dan/
