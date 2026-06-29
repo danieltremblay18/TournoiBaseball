@@ -3159,7 +3159,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 <meta charset="utf-8">
 <style>
   :root{
-    --pool1:#ffe0b2; --pool2:#d1c4e9; --pool3:#b2dfdb;
+    --pool:#ffe0b2;
     --first:#c8e6c9; --second:#bbdefb; --dark:#37474f; --line:#e0e0e0;
   }
   *{box-sizing:border-box;}
@@ -3187,7 +3187,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   .card-head{
     padding:11px 14px; font-weight:700; font-size:16px; letter-spacing:.3px;
   }
-  .pool1{background:var(--pool1);} .pool2{background:var(--pool2);} .pool3{background:var(--pool3);}
+  .pool1,.pool2,.pool3{background:var(--pool);}
   .head-dark{background:var(--dark); color:#fff;}
   table{width:100%; border-collapse:collapse;}
   th,td{padding:9px 10px; font-size:15px; text-align:left;}
