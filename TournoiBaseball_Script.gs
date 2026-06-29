@@ -2549,14 +2549,19 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
   function gameLabel(g) {
     return g.local + ' vs ' + g.visiteur + (g.partie ? ' (partie #' + g.partie + ')' : '');
   }
-  // (a) Parties résolues (Pointage régl. saisi) : Note 4 déjà appliquée aux ratios.
+  // (a) Parties résolues (Pointage régl. saisi). Le tableau de pool (à gauche) affiche
+  // les ratios RÉELS, supplémentaires INCLUSES ; l'exclusion Note 4 ne s'applique qu'au
+  // classement de bris d'égalité (à droite). Le bandeau l'explique pour éviter la confusion.
   var suppResolved = suppGames.filter(function (g) { return !g.suppNeedsTie; });
   if (suppResolved.length > 0) {
     sheet.getRange(row, 1, 1, 13).merge();
     sheet.getRange(row, 1)
-      .setValue('ℹ Note 4 appliquée automatiquement (manches supplémentaires exclues des ' +
-                'ratios RD/RO ; PP/PC restent les totaux réels) : ' +
-                suppResolved.map(gameLabel).join(' ; ') + '.')
+      .setValue('ℹ Partie(s) en manches supplémentaires : ' +
+                suppResolved.map(gameLabel).join(' ; ') + '. Dans ce tableau de pool, les ' +
+                'ratios RD/RO incluent toutes les manches jouées (supplémentaires comprises). ' +
+                'Pour départager les égalités, la Note 4 (Art. 42.11) exclut les manches ' +
+                'supplémentaires : les ratios ajustés selon cette règle apparaissent dans le ' +
+                'tableau de bris d\'égalité à droite.')
       .setWrap(true).setBackground(COLOR_SECOND).setVerticalAlignment('top');
     row++;
   }
@@ -3291,9 +3296,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       table.appendChild(tr);
     });
     card.appendChild(table);
-    if (pc.banners.note4){
-      card.appendChild(el('div','note','ℹ Manches supplémentaires exclues des ratios (Note 4, Art. 42.11).'));
-    }
+    // Note 4 (exclusion des suppl.) n'est PAS pertinente ici : la page publique
+    // n'affiche que les ratios RD/RO du tableau de pool (suppl. INCLUSES) et masque
+    // les tableaux de bris d'égalité — donc aucun bandeau « exclues » à montrer.
     if (pc.banners.forcedSecond){
       card.appendChild(el('div','note','ℹ 2e de pool désigné par le registraire : '+pc.banners.secondTeam+'.'));
     }
