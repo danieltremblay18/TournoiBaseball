@@ -1940,7 +1940,8 @@ function computeStandingsModel(ss, classe) {
       standings: standings.map(function (s) {
         return {
           rank: s.rank, team: s.team, pj: s.pj, v: s.v, d: s.d,
-          rs: s.rs, ra: s.ra,
+          rs: s.rs, ra: s.ra,                    // PP / PC (points réels)
+          md: formatFraction(s.defInnFull),      // manches défensives réelles
           rd: (s.defInnFull > 0 && isFinite(s.raRatioFull)) ? s.raRatioFull : null,
           ro: (s.offInnFull > 0) ? s.rsRatioFull : null
         };
@@ -3190,13 +3191,15 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   .pool1,.pool2,.pool3{background:var(--pool);}
   .head-dark{background:var(--dark); color:#fff;}
   table{width:100%; border-collapse:collapse;}
-  th,td{padding:9px 10px; font-size:15px; text-align:left;}
+  th,td{padding:9px 8px; font-size:15px; text-align:left;}
   th{font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:#607d8b; border-bottom:1px solid var(--line);}
-  td.rank{width:34px; text-align:center; font-weight:700; color:#455a64;}
+  td.rank{width:30px; text-align:center; font-weight:700; color:#455a64;}
   td.team{font-weight:600;}
-  td.vd{width:62px; text-align:center; white-space:nowrap;}
-  td.rd{width:64px; text-align:right; color:#546e7a; font-variant-numeric:tabular-nums;}
-  th.vd,th.rd{text-align:center;}
+  td.vd{width:50px; text-align:center; white-space:nowrap;}
+  td.pc,td.md{width:42px; text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  td.rd{width:52px; text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  th.vd,th.pc,th.md,th.rd{text-align:center;}
+  td.vd,td.pc,td.md,td.rd,th.vd,th.pc,th.md,th.rd{padding-left:5px; padding-right:5px;}
   tr.first td{background:var(--first);}
   tr.second td{background:var(--second);}
   tr+tr td{border-top:1px solid var(--line);}
@@ -3254,14 +3257,18 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var hr = el('tr');
     hr.appendChild(el('th',null,'#'));
     hr.appendChild(el('th',null,'Équipe'));
-    var thv = el('th','vd','V-D'); hr.appendChild(thv);
-    var thr = el('th','rd','RD'); hr.appendChild(thr);
+    hr.appendChild(el('th','vd','V-D'));
+    hr.appendChild(el('th','pc','PC'));
+    hr.appendChild(el('th','md','MD'));
+    hr.appendChild(el('th','rd','RD'));
     table.appendChild(hr);
     pc.standings.forEach(function(s){
       var tr = el('tr', s.rank === 1 ? 'first' : (s.rank === 2 ? 'second' : ''));
       tr.appendChild(el('td','rank', s.rank));
       tr.appendChild(el('td','team', s.team));
       tr.appendChild(el('td','vd', vd(s)));
+      tr.appendChild(el('td','pc', s.ra));
+      tr.appendChild(el('td','md', s.md));
       tr.appendChild(el('td','rd', fmt3(s.rd)));
       table.appendChild(tr);
     });
@@ -3317,7 +3324,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 
     var foot = document.getElementById('footer');
     foot.textContent = '';
-    foot.appendChild(el('div', null, 'RD = points alloués ÷ manches défensives (plus bas = mieux).'));
+    foot.appendChild(el('div', null, 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
     foot.appendChild(el('div', null, model ? ('Mis à jour : ' + model.updatedAt) : ''));
     foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
 
