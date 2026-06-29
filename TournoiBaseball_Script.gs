@@ -1941,6 +1941,7 @@ function computeStandingsModel(ss, classe) {
         return {
           rank: s.rank, team: s.team, pj: s.pj, v: s.v, d: s.d,
           rs: s.rs, ra: s.ra,                    // PP / PC (points réels)
+          mo: formatFraction(s.offInnFull),      // manches offensives réelles
           md: formatFraction(s.defInnFull),      // manches défensives réelles
           rd: (s.defInnFull > 0 && isFinite(s.raRatioFull)) ? s.raRatioFull : null,
           ro: (s.offInnFull > 0) ? s.rsRatioFull : null
@@ -3196,10 +3197,13 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   td.rank{width:30px; text-align:center; font-weight:700; color:#455a64;}
   td.team{font-weight:600;}
   td.vd{width:50px; text-align:center; white-space:nowrap;}
-  td.pc,td.md{width:42px; text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  td.rd{width:52px; text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  th.vd,th.pc,th.md,th.rd{text-align:center;}
-  td.vd,td.pc,td.md,td.rd,th.vd,th.pc,th.md,th.rd{padding-left:5px; padding-right:5px;}
+  td.num{text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  th.vd,th.num{text-align:center;}
+  td.vd,td.num,th.vd,th.num{padding-left:5px; padding-right:5px;}
+  /* Mode « toutes les colonnes » : plus compact pour faire tenir 9 colonnes. */
+  table.full th,table.full td{font-size:13px; padding-top:7px; padding-bottom:7px;}
+  table.full td.vd,table.full td.num,table.full th.vd,table.full th.num{padding-left:3px; padding-right:3px;}
+  table.full td.team{font-size:13px;}
   tr.first td{background:var(--first);}
   tr.second td{background:var(--second);}
   tr+tr td{border-top:1px solid var(--line);}
@@ -3231,6 +3235,10 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       <button data-view="3">Pool 3</button>
       <button data-view="all">Tout</button>
     </div>
+    <div class="seg" id="seg-cols">
+      <button data-cols="simple">Simple</button>
+      <button data-cols="full">Toutes les colonnes</button>
+    </div>
   </div>
   <div id="content"></div>
   <footer id="footer"></footer>
@@ -3239,7 +3247,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 /*__DATA__*/
 (function(){
   var DATA = window.DATA || {A:null,B:null};
-  var state = {classe:'A', view:'all'};
+  var state = {classe:'A', view:'all', cols:'simple'};
 
   function el(tag, cls, txt){
     var e = document.createElement(tag);
@@ -3250,26 +3258,36 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   function fmt3(x){ return (x === null || x === undefined) ? '—' : Number(x).toFixed(3); }
   function vd(s){ return s.v + '-' + s.d; }
 
-  function poolCard(pc){
+  // Définition des colonnes statistiques. Vue « Simple » = essentiel ;
+  // vue « Toutes les colonnes » = tableau de pool complet (plus serré).
+  var COLDEF = {
+    vd: {label:'V-D', cls:'vd',  get:function(s){ return vd(s); }},
+    pp: {label:'PP',  cls:'num', get:function(s){ return s.rs; }},
+    pc: {label:'PC',  cls:'num', get:function(s){ return s.ra; }},
+    mo: {label:'MO',  cls:'num', get:function(s){ return s.mo; }},
+    md: {label:'MD',  cls:'num', get:function(s){ return s.md; }},
+    rd: {label:'RD',  cls:'num', get:function(s){ return fmt3(s.rd); }},
+    ro: {label:'RO',  cls:'num', get:function(s){ return fmt3(s.ro); }}
+  };
+  var COLS_SIMPLE = ['vd','pc','md','rd'];
+  var COLS_FULL   = ['vd','pp','pc','mo','md','rd','ro'];
+
+  function poolCard(pc, full){
+    var cols = full ? COLS_FULL : COLS_SIMPLE;
     var card = el('div','card');
     card.appendChild(el('div','card-head pool'+pc.pool, 'POOL '+pc.pool));
     var table = el('table');
+    if (full) table.className = 'full';
     var hr = el('tr');
     hr.appendChild(el('th',null,'#'));
     hr.appendChild(el('th',null,'Équipe'));
-    hr.appendChild(el('th','vd','V-D'));
-    hr.appendChild(el('th','pc','PC'));
-    hr.appendChild(el('th','md','MD'));
-    hr.appendChild(el('th','rd','RD'));
+    cols.forEach(function(k){ hr.appendChild(el('th', COLDEF[k].cls, COLDEF[k].label)); });
     table.appendChild(hr);
     pc.standings.forEach(function(s){
       var tr = el('tr', s.rank === 1 ? 'first' : (s.rank === 2 ? 'second' : ''));
       tr.appendChild(el('td','rank', s.rank));
       tr.appendChild(el('td','team', s.team));
-      tr.appendChild(el('td','vd', vd(s)));
-      tr.appendChild(el('td','pc', s.ra));
-      tr.appendChild(el('td','md', s.md));
-      tr.appendChild(el('td','rd', fmt3(s.rd)));
+      cols.forEach(function(k){ tr.appendChild(el('td', COLDEF[k].cls, COLDEF[k].get(s))); });
       table.appendChild(tr);
     });
     card.appendChild(table);
@@ -3307,24 +3325,27 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
       (state.view === 'all' ? '' : ' — Pool ' + state.view);
 
+    var full = (state.cols === 'full');
     var content = document.getElementById('content');
     content.textContent = '';
     if (!model){
       content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
     } else if (state.view === 'all'){
-      model.pools.forEach(function(pc){ content.appendChild(poolCard(pc)); });
+      model.pools.forEach(function(pc){ content.appendChild(poolCard(pc, full)); });
       content.appendChild(semiCard(model));
     } else {
       var pc = null;
       model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
-      if (pc) content.appendChild(poolCard(pc));
+      if (pc) content.appendChild(poolCard(pc, full));
       else content.appendChild(el('div','note','Pool introuvable.'));
       content.appendChild(semiCard(model));
     }
 
     var foot = document.getElementById('footer');
     foot.textContent = '';
-    foot.appendChild(el('div', null, 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
+    foot.appendChild(el('div', null, full
+      ? 'PP/PC = points pour/contre · MO/MD = manches off./déf. · RD = PC÷MD · RO = PP÷MO.'
+      : 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
     foot.appendChild(el('div', null, model ? ('Mis à jour : ' + model.updatedAt) : ''));
     foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
 
@@ -3334,6 +3355,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     document.querySelectorAll('#seg-view button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-view') === state.view);
     });
+    document.querySelectorAll('#seg-cols button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-cols') === state.cols);
+    });
   }
 
   document.querySelectorAll('#seg-classe button').forEach(function(b){
@@ -3341,6 +3365,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   });
   document.querySelectorAll('#seg-view button').forEach(function(b){
     b.addEventListener('click', function(){ state.view = b.getAttribute('data-view'); render(); });
+  });
+  document.querySelectorAll('#seg-cols button').forEach(function(b){
+    b.addEventListener('click', function(){ state.cols = b.getAttribute('data-cols'); render(); });
   });
 
   render();
