@@ -94,6 +94,7 @@ function onOpen() {
     .addItem('Effacer les résultats', 'clearResults')
     .addSeparator()
     .addItem('📦 Exporter Résultats + Classements (ZIP de TSV)', 'exportSheetsToZip')
+    .addItem('📱 Lien affichage public (Facebook)', 'showPublicUrl')
     .addSeparator()
     .addItem('🧪 Simuler résultats de match', 'simulateMatchResults')
     .addToUi();
@@ -1895,6 +1896,105 @@ function readForcedRanks(sheet) {
 }
 
 /**
+ * Calcule le MODÈLE de classement d'une classe — purement en mémoire, AUCUNE écriture
+ * de feuille. Rejoue exactement la même séquence de calcul que buildStandingsSheet
+ * (mêmes fonctions pures : getGameResults, calculatePoolStandings, calculateStep,
+ * resolveSecondRepresentative, computeTeamStats) et lit les mêmes forçages admin
+ * (readSecondOverrides / readForcedRanks) — de sorte que l'affichage public (web app
+ * doGet) ne peut pas diverger des feuilles Classements. Retourne un objet JSON-sérialisable.
+ *
+ * @param {Spreadsheet} ss
+ * @param {string} classe  'A' ou 'B'
+ * @return {Object} modèle { classe, pools[], firsts[], seconds[], semifinals, updatedAt }
+ */
+function computeStandingsModel(ss, classe) {
+  var sheet = ss.getSheetByName(SHEET_STANDINGS[classe]);
+  // Forçages admin (survivent au rebuild côté feuille ; ici on les lit pour rester aligné).
+  var overrideByTeam = sheet ? readSecondOverrides(sheet) : {};
+  var forcedRanks    = sheet ? readForcedRanks(sheet)    : {};
+
+  var games       = getGameResults(classe);
+  var teamsByPool = getTeams(classe);
+
+  var firsts  = [];   // { team, pool } des 1ers
+  var seconds = [];   // { team, pool, forced } des 2es (forçage Note 5 inclus)
+  var poolStatsByTeam = {};
+  var pools   = [];
+
+  POOLS.forEach(function (p) {
+    var teams     = teamsByPool[p] || [];
+    var poolGames = games.filter(function (g) { return g.pool === p; });
+    var forcedPool = forcedRanks['A' + p] || {};
+    var standings = calculatePoolStandings(poolGames, teams, forcedPool);
+    var markedInPool = teams.filter(function (t) { return overrideByTeam[t]; });
+    var secondRep = resolveSecondRepresentative(standings, markedInPool);
+
+    // Bandeaux ℹ/⚠ — mêmes règles que writePoolSection (Note 4 / supplémentaires).
+    var suppGames    = poolGames.filter(gameIsSupp);
+    var suppResolved = suppGames.filter(function (g) { return !g.suppNeedsTie; });
+    var suppMissing  = suppGames.filter(function (g) { return g.suppNeedsTie; });
+
+    pools.push({
+      pool: p,
+      // Affichage public épuré : ratios RÉELS (toutes manches), comme le tableau de pool.
+      standings: standings.map(function (s) {
+        return {
+          rank: s.rank, team: s.team, pj: s.pj, v: s.v, d: s.d,
+          rs: s.rs, ra: s.ra,
+          rd: (s.defInnFull > 0 && isFinite(s.raRatioFull)) ? s.raRatioFull : null,
+          ro: (s.offInnFull > 0) ? s.rsRatioFull : null
+        };
+      }),
+      banners: {
+        note4:        suppResolved.length > 0,
+        suppMissing:  suppMissing.length > 0,
+        forcedSecond: secondRep.forced,
+        secondTeam:   secondRep.team,
+        secondWarning: secondRep.warning || ''
+      }
+    });
+
+    standings.forEach(function (s) {
+      poolStatsByTeam[s.team] = s;
+      if (s.rank === 1) { firsts.push({ team: s.team, pool: p }); }
+    });
+    seconds.push({ team: secondRep.team, pool: p, forced: secondRep.forced });
+  });
+
+  // Étapes C (1ers) et B (meilleur 2e) — mêmes appels que buildStandingsSheet.
+  var orderedFirsts  = calculateStep(firsts.map(function (f) { return f.team; }),
+                                     games, true, forcedRanks['C'] || {});
+  var orderedSeconds = calculateStep(seconds.map(function (s) { return s.team; }),
+                                     games, true, forcedRanks['B'] || {});
+
+  var poolOf = {};
+  firsts.forEach(function (f) { poolOf[f.team] = f.pool; });
+  seconds.forEach(function (s) { poolOf[s.team] = s.pool; });
+
+  function withPool(name) { return { team: name, pool: poolOf[name] || '' }; }
+
+  var p1 = orderedFirsts[0]  || '';
+  var p2 = orderedFirsts[1]  || '';
+  var p3 = orderedFirsts[2]  || '';
+  var p4 = orderedSeconds[0] || '';   // meilleur 2e
+
+  var tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+
+  return {
+    classe: classe,
+    pools: pools,
+    firsts:  orderedFirsts.map(withPool),
+    seconds: orderedSeconds.map(withPool),
+    semifinals: {
+      positions: [withPool(p1), withPool(p2), withPool(p3), withPool(p4)],
+      demi1: { a: p1, b: p4 },
+      demi2: { a: p2, b: p3 }
+    },
+    updatedAt: Utilities.formatDate(new Date(), tz, "d MMM yyyy 'à' HH'h'mm")
+  };
+}
+
+/**
  * Construit la feuille Classements pour une classe : 3 pools + Étape C + Étape B.
  */
 function buildStandingsSheet(ss, classe, games) {
@@ -2975,3 +3075,269 @@ function reorderSheets(ss) {
   var cfg = ss.getSheetByName(SHEET_CONFIG);
   if (cfg) { ss.setActiveSheet(cfg); }
 }
+
+// ============================================================================
+//  AFFICHAGE PUBLIC — WEB APP (publication Facebook)
+// ============================================================================
+//
+// Page web publiée (doGet) destinée aux responsables des communications : ils
+// l'ouvrent sur leur téléphone pendant le tournoi pour screenshoter proprement
+// les classements (ou partager le lien) sur la page Facebook du tournoi.
+//
+// Données : computeStandingsModel(ss, classe) — MÊME moteur de calcul que les
+// feuilles Classements (aucun recalcul parallèle), forçages admin inclus. La page
+// est épurée : on n'affiche QUE Rang / Équipe / V-D / RD + les qualifiés en demi-
+// finale, plus les bandeaux « ℹ ». Tout l'admin (Avancement, Forcer 2e, Notes,
+// Critère décisif, bris d'égalité) est volontairement masqué.
+//
+// DÉPLOIEMENT (distinct du simple collage de code) — à refaire après chaque
+// changement du code de la page :
+//   Apps Script → Déployer → Nouveau déploiement → Application Web
+//     • « Exécuter en tant que » : moi (propriétaire) — pour lire les feuilles
+//     • « Qui a accès » : tous les utilisateurs disposant du lien (lecture seule)
+//   Copier l'URL /exec → c'est le lien à donner aux communications.
+//   (Menu « 📱 Lien affichage public » → affiche cette URL.)
+
+/**
+ * Point d'entrée de la web app. Calcule les modèles des classes A et B et retourne
+ * la page HTML d'affichage public.
+ */
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = {
+    A: computeStandingsModel(ss, 'A'),
+    B: computeStandingsModel(ss, 'B')
+  };
+  return HtmlService.createHtmlOutput(renderPublicHtml_(data))
+    .setTitle('Classements — Tournoi 13U')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * Affiche, dans une alerte, l'URL de la web app déployée (à partager aux
+ * communications), ou un rappel des étapes de déploiement si elle ne l'est pas.
+ */
+function showPublicUrl() {
+  var ui = SpreadsheetApp.getUi();
+  var url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (err) { url = ''; }
+  if (url) {
+    ui.alert('📱 Affichage public',
+      'Lien à donner aux responsables des communications.\n' +
+      'À ouvrir sur un téléphone pour publier les classements sur Facebook :\n\n' + url,
+      ui.ButtonSet.OK);
+  } else {
+    ui.alert('📱 Affichage public — à déployer',
+      "La web app n'est pas encore déployée.\n\n" +
+      "Dans l'éditeur Apps Script :\n" +
+      "Déployer → Nouveau déploiement → Application Web\n" +
+      "  • « Exécuter en tant que » : moi\n" +
+      "  • « Qui a accès » : tous les utilisateurs disposant du lien\n\n" +
+      "Copiez l'URL /exec, puis relancez ce menu pour la retrouver.",
+      ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * Construit la page HTML complète (CSS + JS + données embarquées en JSON).
+ * Le JSON est injecté à la place du repère /*__DATA__*\/ ; tous les « < » du JSON
+ * sont échappés en < pour qu'aucun nom d'équipe ne puisse fermer la balise script.
+ * @param {Object} data  { A: modèleA, B: modèleB }
+ * @return {string} HTML
+ */
+function renderPublicHtml_(data) {
+  var json = JSON.stringify(data).replace(/</g, '\\u003c');
+  return PUBLIC_HTML_TEMPLATE_.replace('/*__DATA__*/', 'window.DATA = ' + json + ';');
+}
+
+// Gabarit de la page publique. Le code client n'utilise NI backticks NI « ${ } »
+// pour ne pas interférer avec ce template literal serveur ; les données sont
+// injectées via le repère /*__DATA__*/ par renderPublicHtml_.
+var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --pool1:#ffe0b2; --pool2:#d1c4e9; --pool3:#b2dfdb;
+    --first:#c8e6c9; --second:#bbdefb; --dark:#37474f; --line:#e0e0e0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:#eceff1; color:#263238;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  #app{max-width:520px; margin:0 auto; padding:12px 12px 32px;}
+  header{text-align:center; padding:8px 0 4px;}
+  h1{font-size:20px; margin:0; letter-spacing:.2px;}
+  #subtitle{font-size:14px; color:#546e7a; margin-top:2px;}
+  .controls{display:flex; flex-direction:column; gap:8px; margin:12px 0;}
+  .seg{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+  .seg button{
+    flex:1 1 auto; min-width:64px; padding:9px 10px; font-size:14px;
+    border:1px solid #b0bec5; background:#fff; color:#37474f; border-radius:999px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .seg button.active{background:var(--dark); color:#fff; border-color:var(--dark); font-weight:600;}
+  .card{
+    background:#fff; border-radius:14px; overflow:hidden; margin:0 0 16px;
+    box-shadow:0 1px 4px rgba(0,0,0,.12);
+  }
+  .card-head{
+    padding:11px 14px; font-weight:700; font-size:16px; letter-spacing:.3px;
+  }
+  .pool1{background:var(--pool1);} .pool2{background:var(--pool2);} .pool3{background:var(--pool3);}
+  .head-dark{background:var(--dark); color:#fff;}
+  table{width:100%; border-collapse:collapse;}
+  th,td{padding:9px 10px; font-size:15px; text-align:left;}
+  th{font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:#607d8b; border-bottom:1px solid var(--line);}
+  td.rank{width:34px; text-align:center; font-weight:700; color:#455a64;}
+  td.team{font-weight:600;}
+  td.vd{width:62px; text-align:center; white-space:nowrap;}
+  td.rd{width:64px; text-align:right; color:#546e7a; font-variant-numeric:tabular-nums;}
+  th.vd,th.rd{text-align:center;}
+  tr.first td{background:var(--first);}
+  tr.second td{background:var(--second);}
+  tr+tr td{border-top:1px solid var(--line);}
+  .note{padding:8px 14px; font-size:12.5px; color:#37474f; background:#f1f8ff; border-top:1px solid var(--line);}
+  .qual{padding:6px 0;}
+  .qrow{display:flex; justify-content:space-between; padding:8px 14px; border-bottom:1px solid var(--line); font-size:15px;}
+  .qrow:last-child{border-bottom:none;}
+  .qpos{color:#607d8b;}
+  .qteam{font-weight:700;}
+  .matchups{padding:10px 14px; background:#fafafa; border-top:1px solid var(--line);}
+  .mu{font-size:15px; font-weight:600; padding:3px 0;}
+  footer{text-align:center; color:#78909c; font-size:12px; margin-top:6px; line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🏆 Tournoi de Baseball 13U</h1>
+    <div id="subtitle"></div>
+  </header>
+  <div class="controls">
+    <div class="seg" id="seg-classe">
+      <button data-classe="A">Classe A</button>
+      <button data-classe="B">Classe B</button>
+    </div>
+    <div class="seg" id="seg-view">
+      <button data-view="1">Pool 1</button>
+      <button data-view="2">Pool 2</button>
+      <button data-view="3">Pool 3</button>
+      <button data-view="all">Tout</button>
+    </div>
+  </div>
+  <div id="content"></div>
+  <footer id="footer"></footer>
+</div>
+<script>
+/*__DATA__*/
+(function(){
+  var DATA = window.DATA || {A:null,B:null};
+  var state = {classe:'A', view:'all'};
+
+  function el(tag, cls, txt){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt !== undefined && txt !== null) e.textContent = txt;
+    return e;
+  }
+  function fmt3(x){ return (x === null || x === undefined) ? '—' : Number(x).toFixed(3); }
+  function vd(s){ return s.v + '-' + s.d; }
+
+  function poolCard(pc){
+    var card = el('div','card');
+    card.appendChild(el('div','card-head pool'+pc.pool, 'POOL '+pc.pool));
+    var table = el('table');
+    var hr = el('tr');
+    hr.appendChild(el('th',null,'#'));
+    hr.appendChild(el('th',null,'Équipe'));
+    var thv = el('th','vd','V-D'); hr.appendChild(thv);
+    var thr = el('th','rd','RD'); hr.appendChild(thr);
+    table.appendChild(hr);
+    pc.standings.forEach(function(s){
+      var tr = el('tr', s.rank === 1 ? 'first' : (s.rank === 2 ? 'second' : ''));
+      tr.appendChild(el('td','rank', s.rank));
+      tr.appendChild(el('td','team', s.team));
+      tr.appendChild(el('td','vd', vd(s)));
+      tr.appendChild(el('td','rd', fmt3(s.rd)));
+      table.appendChild(tr);
+    });
+    card.appendChild(table);
+    if (pc.banners.note4){
+      card.appendChild(el('div','note','ℹ Manches supplémentaires exclues des ratios (Note 4, Art. 42.11).'));
+    }
+    if (pc.banners.forcedSecond){
+      card.appendChild(el('div','note','ℹ 2e de pool désigné par le registraire : '+pc.banners.secondTeam+'.'));
+    }
+    return card;
+  }
+
+  function semiCard(model){
+    var card = el('div','card');
+    card.appendChild(el('div','card-head head-dark','✅ DEMI-FINALES'));
+    var sf = model.semifinals;
+    var labels = ['1re place','2e place','3e place','Meilleur 2e'];
+    var q = el('div','qual');
+    sf.positions.forEach(function(p, i){
+      var row = el('div','qrow');
+      row.appendChild(el('span','qpos', labels[i]));
+      row.appendChild(el('span','qteam', p.team || '—'));
+      q.appendChild(row);
+    });
+    card.appendChild(q);
+    var mu = el('div','matchups');
+    mu.appendChild(el('div','mu','DF1 :  '+(sf.demi1.a || '—')+'   vs   '+(sf.demi1.b || '—')));
+    mu.appendChild(el('div','mu','DF2 :  '+(sf.demi2.a || '—')+'   vs   '+(sf.demi2.b || '—')));
+    card.appendChild(mu);
+    return card;
+  }
+
+  function render(){
+    var model = DATA[state.classe];
+    document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
+      (state.view === 'all' ? '' : ' — Pool ' + state.view);
+
+    var content = document.getElementById('content');
+    content.textContent = '';
+    if (!model){
+      content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
+    } else if (state.view === 'all'){
+      model.pools.forEach(function(pc){ content.appendChild(poolCard(pc)); });
+      content.appendChild(semiCard(model));
+    } else {
+      var pc = null;
+      model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
+      if (pc) content.appendChild(poolCard(pc));
+      else content.appendChild(el('div','note','Pool introuvable.'));
+    }
+
+    var foot = document.getElementById('footer');
+    foot.textContent = '';
+    foot.appendChild(el('div', null, 'RD = points alloués ÷ manches défensives (plus bas = mieux).'));
+    foot.appendChild(el('div', null, model ? ('Mis à jour : ' + model.updatedAt) : ''));
+    foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
+
+    document.querySelectorAll('#seg-classe button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-classe') === state.classe);
+    });
+    document.querySelectorAll('#seg-view button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-view') === state.view);
+    });
+  }
+
+  document.querySelectorAll('#seg-classe button').forEach(function(b){
+    b.addEventListener('click', function(){ state.classe = b.getAttribute('data-classe'); render(); });
+  });
+  document.querySelectorAll('#seg-view button').forEach(function(b){
+    b.addEventListener('click', function(){ state.view = b.getAttribute('data-view'); render(); });
+  });
+
+  render();
+  setInterval(function(){ location.reload(); }, 60000);
+})();
+</script>
+</body>
+</html>`;
