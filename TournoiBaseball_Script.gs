@@ -1209,6 +1209,65 @@ function getGameResults(classe) {
 }
 
 /**
+ * Lit les parties d'une classe pour la VUE « Résultats » de la page publique —
+ * affichage seulement, découplé du moteur de classement. Lit directement la feuille
+ * Résultats (le Terrain, p. ex., n'est pas conservé par getGameResults). Retourne
+ * toutes les parties générées (Éq.1 et Éq.2 présentes), jouées ou non.
+ *
+ * @param {string} classe  'A' ou 'B'
+ * @return {Array} lignes { partie, classe, pool, terrain, eq1, eq2, scoreA, scoreB,
+ *                          lastInn, type, played }
+ */
+function getMatchRows(classe) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_RESULTS[classe]);
+  var rows = [];
+  if (!sheet) { return rows; }
+  var last = sheet.getLastRow();
+  if (last < 2) { return rows; }
+
+  var data = sheet.getRange(2, 1, last - 1, 15).getValues();   // colonnes A..O
+  data.forEach(function (r) {
+    var eq1 = String(r[5]).trim();    // F : Équipe 1
+    var eq2 = String(r[6]).trim();    // G : Équipe 2
+    if (eq1 === '' || eq2 === '') { return; }   // ligne non générée
+
+    var pool    = parseInt(r[0], 10); // A
+    var partie  = r[1];               // B : Partie #
+    var terrain = String(r[4]).trim();// E
+    var sA = r[7], sB = r[8];         // H, I
+    var lastInn = r[10];              // K : Manches complètes (dernière manche jouée)
+    var type    = String(r[13]).trim(); // N : Type de fin
+
+    var hasScore = (sA !== '' && sB !== '' && !isNaN(Number(sA)) && !isNaN(Number(sB)));
+    var scoreA = hasScore ? Number(sA) : null;
+    var scoreB = hasScore ? Number(sB) : null;
+
+    // Forfait : pointage officiel = Manches prévues (col. M) au gagnant, 0 au perdant
+    // (Art. 42.11) ; le registraire ne fait que désigner le gagnant par un score plus haut.
+    if (hasScore && type === 'Forfait') {
+      var prevues = parseInt(r[12], 10);
+      if (isNaN(prevues) || prevues < 1) { prevues = TOTAL_INNINGS; }
+      if (scoreA >= scoreB) { scoreA = prevues; scoreB = 0; }
+      else { scoreA = 0; scoreB = prevues; }
+    }
+
+    rows.push({
+      partie:  partie,
+      classe:  classe,
+      pool:    isNaN(pool) ? '' : pool,
+      terrain: terrain,
+      eq1: eq1, eq2: eq2,
+      scoreA: scoreA, scoreB: scoreB,
+      lastInn: (lastInn === '' || lastInn === null) ? null : lastInn,
+      type: hasScore ? (type || 'Normal') : '',
+      played: hasScore
+    });
+  });
+  return rows;
+}
+
+/**
  * Détermine si une ligne de Résultats est COMPLÈTE — c.-à-d. si le registraire a
  * fini de saisir la partie et que le recalcul live (handleResultEdit) peut se déclencher
  * sans risquer de bouger les classements en pleine saisie.
@@ -3138,9 +3197,17 @@ function reorderSheets(ss) {
  */
 function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Parties des deux classes mélangées, triées par numéro de partie (vue « Résultats »).
+  var matches = getMatchRows('A').concat(getMatchRows('B'));
+  matches.sort(function (a, b) {
+    var na = parseInt(a.partie, 10), nb = parseInt(b.partie, 10);
+    if (isNaN(na) || isNaN(nb)) { return String(a.partie).localeCompare(String(b.partie)); }
+    return na - nb;
+  });
   var data = {
     A: computeStandingsModel(ss, 'A'),
-    B: computeStandingsModel(ss, 'B')
+    B: computeStandingsModel(ss, 'B'),
+    matches: matches
   };
   return HtmlService.createHtmlOutput(renderPublicHtml_(data))
     .setTitle('Classements — Tournoi 13U')
@@ -3248,6 +3315,13 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   .qteam{font-weight:700;}
   .matchups{padding:10px 14px; background:#fafafa; border-top:1px solid var(--line);}
   .mu{font-size:15px; font-weight:600; padding:3px 0;}
+  /* Vue « Résultats » : table large, scroll horizontal de secours sur petit écran. */
+  .mwrap{overflow-x:auto;}
+  table.mtable th,table.mtable td{font-size:12.5px; padding:7px 5px; white-space:nowrap;}
+  table.mtable td.c{text-align:center;}
+  table.mtable td.t{font-weight:600; white-space:normal;}
+  table.mtable td.win{font-weight:800; color:#1b5e20;}
+  table.mtable tr.pending td{color:#9e9e9e;}
   footer{text-align:center; color:#78909c; font-size:12px; margin-top:6px; line-height:1.5;}
 </style>
 </head>
@@ -3258,6 +3332,10 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     <div id="subtitle"></div>
   </header>
   <div class="controls">
+    <div class="seg" id="seg-mode">
+      <button data-mode="standings">Classements</button>
+      <button data-mode="matches">Résultats</button>
+    </div>
     <div class="seg" id="seg-classe">
       <button data-classe="A">Classe A</button>
       <button data-classe="B">Classe B</button>
@@ -3279,8 +3357,8 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 <script>
 /*__DATA__*/
 (function(){
-  var DATA = window.DATA || {A:null,B:null};
-  var state = {classe:'A', view:'all', cols:'simple'};
+  var DATA = window.DATA || {A:null,B:null,matches:[]};
+  var state = {mode:'standings', classe:'A', view:'all', cols:'simple'};
 
   function el(tag, cls, txt){
     var e = document.createElement(tag);
@@ -3380,38 +3458,91 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     return card;
   }
 
-  function render(){
-    var model = DATA[state.classe];
-    document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
-      (state.view === 'all' ? '' : ' — Pool ' + state.view);
+  function teamPts(name, pts){ return name + (pts === null || pts === undefined ? '' : ' ('+pts+')'); }
+  function finLabel(t){ return !t ? '' : (t === 'Supplémentaires' ? 'Suppl.' : t); }
 
-    var full = (state.cols === 'full');
+  function matchesView(){
+    var matches = DATA.matches || [];
+    var card = el('div','card');
+    card.appendChild(el('div','card-head head-dark','📋 RÉSULTATS DES PARTIES'));
+    if (!matches.length){
+      card.appendChild(el('div','note','Aucune partie générée pour l\'instant.'));
+      return card;
+    }
+    var wrap = el('div','mwrap');
+    var table = el('table','mtable');
+    var hr = el('tr');
+    ['#','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Suppl','Typ Fin'].forEach(function(h){
+      hr.appendChild(el('th', null, h));
+    });
+    table.appendChild(hr);
+    matches.forEach(function(m){
+      var tr = el('tr', m.played ? '' : 'pending');
+      var win1 = m.played && m.scoreA > m.scoreB;
+      var win2 = m.played && m.scoreB > m.scoreA;
+      tr.appendChild(el('td','c', m.partie));
+      tr.appendChild(el('td','c', m.classe));
+      tr.appendChild(el('td','c', m.pool));
+      tr.appendChild(el('td','c', m.terrain || '—'));
+      tr.appendChild(el('td', win1 ? 't win' : 't', teamPts(m.eq1, m.scoreA)));
+      tr.appendChild(el('td', win2 ? 't win' : 't', teamPts(m.eq2, m.scoreB)));
+      tr.appendChild(el('td','c', m.lastInn === null || m.lastInn === undefined ? '' : m.lastInn));
+      tr.appendChild(el('td','c', finLabel(m.type)));
+      table.appendChild(tr);
+    });
+    wrap.appendChild(table);
+    card.appendChild(wrap);
+    return card;
+  }
+
+  function render(){
+    var inMatches = (state.mode === 'matches');
+    document.getElementById('seg-classe').style.display = inMatches ? 'none' : 'flex';
+    document.getElementById('seg-view').style.display   = inMatches ? 'none' : 'flex';
+    document.getElementById('seg-cols').style.display   = inMatches ? 'none' : 'flex';
+
     var content = document.getElementById('content');
     content.textContent = '';
-    if (!model){
-      content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
-    } else if (state.view === 'all'){
-      model.pools.forEach(function(pc){ content.appendChild(poolCard(pc, full)); });
-      content.appendChild(secondCard(model));
-      content.appendChild(semiCard(model));
-    } else {
-      var pc = null;
-      model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
-      if (pc) content.appendChild(poolCard(pc, full));
-      else content.appendChild(el('div','note','Pool introuvable.'));
-      content.appendChild(secondCard(model));
-      content.appendChild(semiCard(model));
-    }
-
     var foot = document.getElementById('footer');
     foot.textContent = '';
-    foot.appendChild(el('div', null, full
-      ? 'PP/PC = points pour/contre · MO/MD = manches off./déf. · RD = PC÷MD · RO = PP÷MO.'
-      : 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
-    foot.appendChild(el('div', null, 'Rang = classement final pour les demi-finales : 1-2-3 = 1ers de pool, 4 = meilleur 2e.'));
-    foot.appendChild(el('div', null, model ? ('Mis à jour : ' + model.updatedAt) : ''));
+
+    if (inMatches){
+      document.getElementById('subtitle').textContent = 'Résultats des parties — Classes A et B';
+      content.appendChild(matchesView());
+      foot.appendChild(el('div', null,
+        'Suppl = n° de la dernière manche jouée · Typ Fin = type de fin (Normal / Mercy / Forfait / Suppl.).'));
+    } else {
+      var model = DATA[state.classe];
+      document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
+        (state.view === 'all' ? '' : ' — Pool ' + state.view);
+      var full = (state.cols === 'full');
+      if (!model){
+        content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
+      } else if (state.view === 'all'){
+        model.pools.forEach(function(pc){ content.appendChild(poolCard(pc, full)); });
+        content.appendChild(secondCard(model));
+        content.appendChild(semiCard(model));
+      } else {
+        var pc = null;
+        model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
+        if (pc) content.appendChild(poolCard(pc, full));
+        else content.appendChild(el('div','note','Pool introuvable.'));
+        content.appendChild(secondCard(model));
+        content.appendChild(semiCard(model));
+      }
+      foot.appendChild(el('div', null, full
+        ? 'PP/PC = points pour/contre · MO/MD = manches off./déf. · RD = PC÷MD · RO = PP÷MO.'
+        : 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
+      foot.appendChild(el('div', null, 'Rang = classement final pour les demi-finales : 1-2-3 = 1ers de pool, 4 = meilleur 2e.'));
+    }
+
+    var anyModel = DATA.A || DATA.B;
+    foot.appendChild(el('div', null, anyModel ? ('Mis à jour : ' + (anyModel.updatedAt || '')) : ''));
     foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
 
+    document.querySelectorAll('#seg-mode button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-mode') === state.mode);
+    });
     document.querySelectorAll('#seg-classe button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-classe') === state.classe);
     });
@@ -3423,6 +3554,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     });
   }
 
+  document.querySelectorAll('#seg-mode button').forEach(function(b){
+    b.addEventListener('click', function(){ state.mode = b.getAttribute('data-mode'); render(); });
+  });
   document.querySelectorAll('#seg-classe button').forEach(function(b){
     b.addEventListener('click', function(){ state.classe = b.getAttribute('data-classe'); render(); });
   });
