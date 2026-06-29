@@ -3312,6 +3312,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
       if (pc) content.appendChild(poolCard(pc));
       else content.appendChild(el('div','note','Pool introuvable.'));
+      content.appendChild(semiCard(model));
     }
 
     var foot = document.getElementById('footer');
