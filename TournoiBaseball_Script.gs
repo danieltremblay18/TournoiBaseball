@@ -2565,15 +2565,18 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
       .setWrap(true).setBackground(COLOR_SECOND).setVerticalAlignment('top');
     row++;
   }
-  // (b) Parties supplémentaires sans Pointage régl. saisi : Note 4 NON appliquée.
+  // (b) Parties supplémentaires sans Pointage régl. saisi : Note 4 NON applicable au bris
+  // d'égalité tant que la donnée manque. Même structure que le bandeau (a) ci-dessus.
   var suppMissing = suppGames.filter(function (g) { return g.suppNeedsTie; });
   if (suppMissing.length > 0) {
     sheet.getRange(row, 1, 1, 13).merge();
     sheet.getRange(row, 1)
-      .setValue('⚠ Manches supplémentaires SANS "Pointage régl." (col. O) : ' +
-                suppMissing.map(gameLabel).join(' ; ') + '. Les ratios RD/RO incluent encore ' +
-                'les points des supplémentaires (Note 4 non appliquée). Saisissez le pointage ' +
-                'réglementaire (nul) de ces parties pour corriger automatiquement.')
+      .setValue('⚠ Partie(s) en manches supplémentaires SANS « Pointage régl. » (col. O) : ' +
+                suppMissing.map(gameLabel).join(' ; ') + '. Comme toujours, ce tableau de pool ' +
+                'inclut toutes les manches dans RD/RO ; mais le classement de bris d\'égalité ' +
+                '(à droite) ne peut PAS encore exclure les manches supplémentaires (Note 4, ' +
+                'Art. 42.11) tant que ce pointage manque. Saisissez le pointage réglementaire ' +
+                '(nul) de ces parties pour l\'appliquer automatiquement.')
       .setWrap(true).setBackground(COLOR_INPUT).setVerticalAlignment('top');
     row++;
   }
