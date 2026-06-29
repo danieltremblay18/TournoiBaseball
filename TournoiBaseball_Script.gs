@@ -1975,6 +1975,30 @@ function computeStandingsModel(ss, classe) {
 
   function withPool(name) { return { team: name, pool: poolOf[name] || '' }; }
 
+  // Rang FINAL (1-4) : seules les 4 équipes qualifiées en portent un. 1ers de pool
+  // ordonnés par Étape C → 1/2/3 ; meilleur 2e (Étape B) → 4. Posé sur chaque ligne
+  // de pool (s.seed) et utilisé par la colonne « Rang » + la carte « Meilleur 2e ».
+  var seedByTeam = {};
+  orderedFirsts.forEach(function (name, i) { seedByTeam[name] = i + 1; });
+  if (orderedSeconds[0]) { seedByTeam[orderedSeconds[0]] = 4; }
+  pools.forEach(function (pc) {
+    pc.standings.forEach(function (s) { s.seed = seedByTeam[s.team] || null; });
+  });
+
+  // Entrées « Meilleur 2e » enrichies (V-D / RD réels, comme le tableau de pool) ;
+  // l'ordre reste l'ordre officiel Étape B.
+  var secondsCard = orderedSeconds.map(function (name, i) {
+    var st = poolStatsByTeam[name] || {};
+    return {
+      team: name,
+      pool: poolOf[name] || '',
+      v: st.v || 0,
+      d: st.d || 0,
+      rd: (st.defInnFull > 0 && isFinite(st.raRatioFull)) ? st.raRatioFull : null,
+      seed: (i === 0) ? 4 : null
+    };
+  });
+
   var p1 = orderedFirsts[0]  || '';
   var p2 = orderedFirsts[1]  || '';
   var p3 = orderedFirsts[2]  || '';
@@ -1986,7 +2010,7 @@ function computeStandingsModel(ss, classe) {
     classe: classe,
     pools: pools,
     firsts:  orderedFirsts.map(withPool),
-    seconds: orderedSeconds.map(withPool),
+    seconds: secondsCard,
     semifinals: {
       positions: [withPool(p1), withPool(p2), withPool(p3), withPool(p4)],
       demi1: { a: p1, b: p4 },
@@ -3206,11 +3230,12 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   td.team{font-weight:600;}
   td.vd{width:50px; text-align:center; white-space:nowrap;}
   td.num{text-align:center; color:#546e7a; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  th.vd,th.num{text-align:center;}
-  td.vd,td.num,th.vd,th.num{padding-left:5px; padding-right:5px;}
-  /* Mode « toutes les colonnes » : plus compact pour faire tenir 9 colonnes. */
+  td.seed{width:42px; text-align:center; font-weight:700; color:#1b5e20;}
+  th.vd,th.num,th.seed{text-align:center;}
+  td.vd,td.num,td.seed,th.vd,th.num,th.seed{padding-left:5px; padding-right:5px;}
+  /* Mode « toutes les colonnes » : plus compact pour faire tenir toutes les colonnes. */
   table.full th,table.full td{font-size:13px; padding-top:7px; padding-bottom:7px;}
-  table.full td.vd,table.full td.num,table.full th.vd,table.full th.num{padding-left:3px; padding-right:3px;}
+  table.full td.vd,table.full td.num,table.full td.seed,table.full th.vd,table.full th.num,table.full th.seed{padding-left:3px; padding-right:3px;}
   table.full td.team{font-size:13px;}
   tr.first td{background:var(--first);}
   tr.second td{background:var(--second);}
@@ -3290,12 +3315,14 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     hr.appendChild(el('th',null,'#'));
     hr.appendChild(el('th',null,'Équipe'));
     cols.forEach(function(k){ hr.appendChild(el('th', COLDEF[k].cls, COLDEF[k].label)); });
+    hr.appendChild(el('th','seed','Rang'));   // rang final (1-4), dernière colonne
     table.appendChild(hr);
     pc.standings.forEach(function(s){
       var tr = el('tr', s.rank === 1 ? 'first' : (s.rank === 2 ? 'second' : ''));
       tr.appendChild(el('td','rank', s.rank));
       tr.appendChild(el('td','team', s.team));
       cols.forEach(function(k){ tr.appendChild(el('td', COLDEF[k].cls, COLDEF[k].get(s))); });
+      tr.appendChild(el('td','seed', s.seed || ''));
       table.appendChild(tr);
     });
     card.appendChild(table);
@@ -3305,6 +3332,31 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     if (pc.banners.forcedSecond){
       card.appendChild(el('div','note','ℹ 2e de pool désigné par le registraire : '+pc.banners.secondTeam+'.'));
     }
+    return card;
+  }
+
+  function secondCard(model){
+    var seconds = model.seconds || [];
+    var card = el('div','card');
+    card.appendChild(el('div','card-head pool1','🥈 MEILLEUR 2e'));
+    var table = el('table');
+    var hr = el('tr');
+    hr.appendChild(el('th','seed','Rang'));
+    hr.appendChild(el('th',null,'Équipe'));
+    hr.appendChild(el('th','num','Pool'));
+    hr.appendChild(el('th','vd','V-D'));
+    hr.appendChild(el('th','num','RD'));
+    table.appendChild(hr);
+    seconds.forEach(function(s){
+      var tr = el('tr', s.seed ? 'second' : '');
+      tr.appendChild(el('td','seed', s.seed || ''));
+      tr.appendChild(el('td','team', s.team));
+      tr.appendChild(el('td','num', s.pool));
+      tr.appendChild(el('td','vd', vd(s)));
+      tr.appendChild(el('td','num', fmt3(s.rd)));
+      table.appendChild(tr);
+    });
+    card.appendChild(table);
     return card;
   }
 
@@ -3340,12 +3392,14 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
     } else if (state.view === 'all'){
       model.pools.forEach(function(pc){ content.appendChild(poolCard(pc, full)); });
+      content.appendChild(secondCard(model));
       content.appendChild(semiCard(model));
     } else {
       var pc = null;
       model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
       if (pc) content.appendChild(poolCard(pc, full));
       else content.appendChild(el('div','note','Pool introuvable.'));
+      content.appendChild(secondCard(model));
       content.appendChild(semiCard(model));
     }
 
@@ -3354,6 +3408,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     foot.appendChild(el('div', null, full
       ? 'PP/PC = points pour/contre · MO/MD = manches off./déf. · RD = PC÷MD · RO = PP÷MO.'
       : 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
+    foot.appendChild(el('div', null, 'Rang = classement final pour les demi-finales : 1-2-3 = 1ers de pool, 4 = meilleur 2e.'));
     foot.appendChild(el('div', null, model ? ('Mis à jour : ' + model.updatedAt) : ''));
     foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
 
