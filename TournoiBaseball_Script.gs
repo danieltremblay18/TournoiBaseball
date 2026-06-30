@@ -3466,7 +3466,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var card = el('div','card');
     card.appendChild(el('div','card-head head-dark','📋 RÉSULTATS DES PARTIES'));
     if (!matches.length){
-      card.appendChild(el('div','note','Aucune partie générée pour l\'instant.'));
+      card.appendChild(el('div','note','Aucune partie générée pour le moment.'));
       return card;
     }
     var wrap = el('div','mwrap');
