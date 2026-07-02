@@ -101,6 +101,7 @@ changer les fiches victoires-défaites.
 | `Regles13U_2026.md` / `ReglesRegie2026.pdf` | Règles officielles Baseball Québec |
 | `Horaire-tournoi-2026.xlsx` | Horaire du tournoi de l'ABMR (référence de format) |
 | `Équipes.txt` | Notes de travail |
+| `docs/redirection-domaine.md` | Config. domaine `tournoibaseballrimouski.ca` → affichage public (Webnames/Cloudflare) |
 
 ## Licence
 
