@@ -43,6 +43,7 @@ var SHEET_HELP        = 'Aide';
 var SHEET_CONFIG      = 'Configuration';
 var SHEET_RESULTS     = { 'A': 'Résultats A', 'B': 'Résultats B' };
 var SHEET_STANDINGS   = { 'A': 'Classements A', 'B': 'Classements B' };
+var SHEET_LEDGER      = 'Grand livre';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -54,6 +55,10 @@ var COLOR_INPUT     = '#fff9c4';   // jaune clair  - saisie manuelle
 var COLOR_CALC      = '#eeeeee';   // gris clair    - calculé
 var COLOR_FIRST     = '#c8e6c9';   // vert          - 1er de pool
 var COLOR_SECOND    = '#bbdefb';   // bleu clair    - 2e de pool
+var COLOR_WIN       = '#c8e6c9';   // vert          - victoire (Grand livre)
+var COLOR_LOSS      = '#ffcdd2';   // rouge clair   - défaite (Grand livre)
+var COLOR_LOCAL     = '#e1f5fe';   // bleu très pâle - équipe locale (Grand livre)
+var COLOR_VISITOR   = '#ffe0b2';   // orange pâle   - équipe visiteuse (Grand livre)
 var COLOR_HEADER    = '#37474f';   // en-tête foncé
 var COLOR_HEADER_TX = '#ffffff';   // texte en-tête
 var COLOR_POOL_1    = '#ffe0b2';
@@ -89,11 +94,12 @@ function onOpen() {
     .addItem('Initialiser (conserver Configuration)', 'createAllSheetsKeepConfig')
     .addItem('Générer les matchs', 'generateGames')
     .addItem('Mettre à jour les classements', 'calculateStandings')
+    .addItem('📒 Grand livre des matchs', 'buildLedgerSheet')
     .addSeparator()
     .addItem('⚡ Activer la mise à jour auto', 'installTriggers')
     .addItem('Effacer les résultats', 'clearResults')
     .addSeparator()
-    .addItem('📦 Exporter Résultats + Classements (ZIP de TSV)', 'exportSheetsToZip')
+    .addItem('📦 Exporter Résultats + Classements + Grand livre (ZIP de TSV)', 'exportSheetsToZip')
     .addItem('📱 Lien affichage public (Facebook)', 'showPublicUrl')
     .addSeparator()
     .addItem('🧪 Simuler résultats de match', 'simulateMatchResults')
@@ -276,6 +282,7 @@ function handleResultEdit(e) {
     }
 
     buildStandingsSheet(ss, classe, games);
+    buildLedgerSheet(ss);
     ss.toast('Classement ' + classe + ' mis à jour.', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
@@ -310,6 +317,7 @@ function recalcStandingsOnly(e, classe) {
     var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
     var games = getGameResults(classe);
     buildStandingsSheet(ss, classe, games);
+    buildLedgerSheet(ss);
     ss.toast('Classement ' + classe + ' mis à jour (forçage).', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
@@ -356,6 +364,7 @@ function rebuildSheets(keepConfig) {
   }
   CLASSES.forEach(function (c) { createResultsSheet(ss, c); });
   CLASSES.forEach(function (c) { createStandingsSheet(ss, c); });
+  createLedgerSheet(ss);
 
   // Ancien onglet "Manches_Détail" (saisie du pointage par manche) : retiré du système
   // — la Priorité 4 se calcule désormais sur papier puis se saisit dans la colonne
@@ -913,6 +922,26 @@ function createHelpSheet(ss) {
     'pour forcer un recalcul complet et propre.', true);
 
   addBlank();
+  addTitle('📒 GRAND LIVRE DES MATCHS (AUDIT)', COLOR_SECTION);
+  addText(
+    'La feuille "Grand livre" liste chaque partie deux fois — une ligne par équipe — comme ' +
+    'un compte de banque : les colonnes "Somme PP/PC/MO/MD" (EN GRAS) cumulent ' +
+    'progressivement d\'un match à l\'autre pour une même équipe, alors que RD et RO sont ' +
+    'recalculés à chaque ligne (jamais cumulés). Elle se reconstruit automatiquement en ' +
+    'même temps que les classements (menu ou mise à jour auto).');
+  addText(
+    'Repères visuels : la colonne "Équipe" est verte et "Adversaire" rouge quand l\'équipe ' +
+    'de la ligne gagne (l\'inverse si elle perd) ; "Loc/Vis" est bleu pâle (locale) ou ' +
+    'orange pâle (visiteuse) ; RD et RO ont un dégradé de couleur (vert = bon, rouge = ' +
+    'moins bon) ; un trait souligne la dernière ligne de chaque équipe (son "solde final").');
+  addText(
+    'Utile en cas de doute sur un classement : le "solde final" de chaque équipe (dernière ' +
+    'ligne de son bloc) doit correspondre exactement à ses colonnes PP/PC/MO/MD dans le ' +
+    'tableau de pool des Classements. Si ce n\'est pas le cas, ou si un écart apparaît en ' +
+    'cours de tournoi, on peut retracer, ligne par ligne, à quel match précis le cumul ' +
+    'dérape.');
+
+  addBlank();
   addTitle('RAPPEL', COLOR_SECTION);
   addText(
     'L\'équipe locale (colonne J) ne peut être connue qu\'une fois la partie jouée — ' +
@@ -1096,6 +1125,9 @@ function getGameResults(classe) {
   data.forEach(function (row, idx) {
     var pool        = parseInt(row[0], 10);
     var partie      = row[1];
+    var jour        = row[2];
+    var heure       = row[3];
+    var terrain     = String(row[4]).trim();
     var teamA       = String(row[5]).trim();
     var teamB       = String(row[6]).trim();
     var scoreA      = row[7];
@@ -1182,8 +1214,12 @@ function getGameResults(classe) {
       pool: pool,
       partie: partie,
       rowIndex: idx + 2,
+      jour: jour,
+      heure: heure,
+      terrain: terrain,
       local: local,
       visiteur: visiteur,
+      homeKnown: homeKnown,
       scoreLocal: scoreLocal,
       scoreVisiteur: scoreVisiteur,
       manches: manches,
@@ -1431,6 +1467,8 @@ function calculateStandings() {
     // 2) Construit le classement.
     buildStandingsSheet(ss, classe, games);
   });
+
+  buildLedgerSheet(ss);
 
   SpreadsheetApp.getActiveSpreadsheet().toast('Classements recalculés.', 'Tournoi Baseball', 5);
 }
@@ -2803,6 +2841,275 @@ function writeSemifinalSummary(sheet, startRow, classe, orderedFirsts, orderedSe
 }
 
 // ============================================================================
+//  GRAND LIVRE DES MATCHS (AUDIT)
+// ============================================================================
+
+// En-têtes du Grand livre : une ligne = une TRANSACTION (une équipe dans un
+// match). 2 lignes par match (équipe locale + équipe visiteuse), 3 matchs par
+// équipe, 24 équipes (2 classes x 3 pools x 4 équipes) → 72 lignes au total.
+var LEDGER_HEADERS = [
+  'Classe', 'Pool', 'Partie #', 'Jour', 'Heure', 'Terrain',
+  'Équipe', 'Adversaire', 'Résultat', 'Score', 'Loc/Vis',
+  'Manches complètes', 'Retraits en fin', 'Manches prévues', 'Type de fin',
+  'Pointage régl. (suppl.)',
+  'PC', 'Somme PC', 'MD', 'Somme MD', 'RD',
+  'PP', 'Somme PP', 'MO', 'Somme MO', 'RO'
+];
+
+var LEDGER_HEADER_NOTES = {
+  1:  'GRAND LIVRE — audit façon « compte bancaire » : chaque ligne est une ' +
+      'TRANSACTION (une équipe dans un match, 2 lignes par match). Trié ' +
+      'Classe → Pool → Équipe (les 3 matchs de chaque équipe regroupés) → ' +
+      'Partie #. Les colonnes « Somme X » (EN GRAS) CUMULENT progressivement ' +
+      'pour l\'équipe de la ligne (comme un solde qui augmente) ; le cumul ' +
+      'final de chaque équipe (dernière ligne de son bloc, soulignée d\'un ' +
+      'trait) doit correspondre EXACTEMENT à PP/PC/MO/MD affichés dans le ' +
+      'tableau de pool (feuille Classements). Équipe (vert) / Adversaire ' +
+      '(rouge) indiquent la gagnante de la partie. Sert à retracer, en cas ' +
+      'd\'écart, à quel match précis il apparaît.',
+  11: 'LOC/VIS — bleu pâle = Local, orange pâle = Visiteur. « Inconnu » (non ' +
+      'coloré) si l\'équipe locale n\'a pas été précisée dans Résultats ' +
+      '(colonne « Équipe Locale ») : dans ce cas les manches sont calculées ' +
+      'de façon symétrique (aucune fraction ⅓/⅔), donc PP/PC/MO/MD restent ' +
+      'exacts, mais on ne peut pas affirmer laquelle des deux équipes ' +
+      'recevait réellement.',
+  17: 'PC / MD / RD — PC et MD sont les valeurs RÉELLES de CETTE partie ' +
+      'seulement (PC = points alloués ; MD = manches défensives, ' +
+      'supplémentaires incluses). RD, lui, n\'est PAS cumulé : il est ' +
+      'RECALCULÉ à chaque ligne = Somme PC ÷ Somme MD à ce point (même base ' +
+      'réelle que le tableau de pool). Dégradé de couleur : vert (bas, ' +
+      'meilleur) → rouge (haut, moins bon).',
+  22: 'PP / MO / RO — mêmes principes que PC/MD/RD (colonne Q), côté ' +
+      'offensif : PP et MO sont les valeurs réelles de CETTE partie ; RO est ' +
+      'recalculé à chaque ligne = Somme PP ÷ Somme MO à ce point. Dégradé de ' +
+      'couleur : rouge (bas, moins bon) → vert (haut, meilleur).'
+};
+
+/** Écrit les en-têtes, notes et largeurs de colonnes du Grand livre. */
+function writeLedgerHeaders(sheet) {
+  sheet.getRange(1, 1, 1, LEDGER_HEADERS.length).setValues([LEDGER_HEADERS]);
+  styleHeader(sheet.getRange(1, 1, 1, LEDGER_HEADERS.length));
+  applyHeaderNotes(sheet, 1, LEDGER_HEADER_NOTES);
+
+  var widths = [55, 45, 70, 90, 70, 70, 170, 170, 80, 70, 80,
+                110, 100, 110, 110, 150, 55, 80, 65, 80, 70,
+                55, 80, 65, 80, 70];
+  for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(8);   // Classe..Adversaire restent visibles au défilement
+}
+
+/**
+ * Structure vide du Grand livre (en-têtes seulement), pour rebuildSheets.
+ * Rempli ensuite par buildLedgerSheet (menu, calculateStandings, ou live via
+ * handleResultEdit/recalcStandingsOnly).
+ */
+function createLedgerSheet(ss) {
+  var sheet = getOrCreateSheet(ss, SHEET_LEDGER);
+  sheet.clear();
+  clearDataValidations(sheet);
+  sheet.clearConditionalFormatRules();
+  writeLedgerHeaders(sheet);
+  sheet.getRange(2, 1).setValue(
+    'Cliquez sur « Générer les matchs » puis « Mettre à jour les classements » ' +
+    'pour remplir le grand livre.').setFontStyle('italic');
+}
+
+/**
+ * Reconstruit ENTIÈREMENT la feuille Grand livre à partir des DEUX classes
+ * (contrairement à buildStandingsSheet, appelée une fois par classe — le
+ * grand livre les combine dans une seule feuille triée Classe → Pool →
+ * Équipe → Partie #). Base de calcul RÉELLE (PP/PC/MO/MD réels, suppl.
+ * incluses), identique à celle du tableau de pool (writePoolSection), pour
+ * que le cumul final de chaque équipe corresponde aux classements officiels.
+ */
+function buildLedgerSheet(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateSheet(ss, SHEET_LEDGER);
+  sheet.clear();
+  clearDataValidations(sheet);
+  writeLedgerHeaders(sheet);
+
+  var gamesByClasse = { A: getGameResults('A'), B: getGameResults('B') };
+  var rows = buildLedgerRows(gamesByClasse);
+
+  if (rows.length === 0) {
+    sheet.clearConditionalFormatRules();
+    sheet.getRange(2, 1).setValue('Aucun résultat saisi pour l\'instant.').setFontStyle('italic');
+    return;
+  }
+
+  var values = rows.map(function (r) { return r.values; });
+  sheet.getRange(2, 1, values.length, LEDGER_HEADERS.length).setValues(values);
+
+  // Toute la zone est CALCULÉE (rien à saisir ici) : fond gris uniforme, avec
+  // des bandes alternées par bloc équipe pour la lisibilité (3 lignes/équipe).
+  var nRows = values.length;
+  var fullRange = sheet.getRange(2, 1, nRows, LEDGER_HEADERS.length);
+  fullRange.setBackground(COLOR_CALC);
+  fullRange.setFontWeight('normal');
+
+  // Colonnes « Somme » (cumul) : seules colonnes en gras, pour les distinguer
+  // d'un coup d'œil des valeurs PC/MD/PP/MO « de cette partie » à côté.
+  [18, 20, 23, 25].forEach(function (col) {
+    sheet.getRange(2, col, nRows, 1).setFontWeight('bold');
+  });
+
+  var band = false;
+  var prevKey = null;
+  rows.forEach(function (r, i) {
+    var sheetRow = i + 2;
+    if (r.key !== prevKey) { band = !band; prevKey = r.key; }
+    if (band) {
+      sheet.getRange(sheetRow, 1, 1, LEDGER_HEADERS.length).setBackground('#f5f5f5');
+    }
+
+    // Équipe (col 7) / Adversaire (col 8) : gagnante en vert, perdante en rouge.
+    if (r.resultat === 'Victoire') {
+      sheet.getRange(sheetRow, 7).setBackground(COLOR_WIN);
+      sheet.getRange(sheetRow, 8).setBackground(COLOR_LOSS);
+    } else if (r.resultat === 'Défaite') {
+      sheet.getRange(sheetRow, 7).setBackground(COLOR_LOSS);
+      sheet.getRange(sheetRow, 8).setBackground(COLOR_WIN);
+    }
+
+    // Loc/Vis (col 11) : bleu pâle si locale, orange pâle si visiteuse, neutre
+    // (fond gris/bande déjà appliqué) si inconnue.
+    if (r.locVis === 'Local') {
+      sheet.getRange(sheetRow, 11).setBackground(COLOR_LOCAL);
+    } else if (r.locVis === 'Visiteur') {
+      sheet.getRange(sheetRow, 11).setBackground(COLOR_VISITOR);
+    }
+
+    // Bordure sous la dernière ligne de chaque équipe (son « solde final »),
+    // pour repérer la fin de chaque bloc sans recourir au gras (réservé aux
+    // colonnes Somme ci-dessus).
+    var isLastOfTeam = (i === rows.length - 1) || (rows[i + 1].key !== r.key);
+    if (isLastOfTeam) {
+      sheet.getRange(sheetRow, 1, 1, LEDGER_HEADERS.length)
+        .setBorder(null, null, true, null, null, null,
+                   '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    }
+  });
+
+  // Dégradé de couleur sur RD (col 21) et RO (col 26) : repère visuel des
+  // équipes en difficulté défensive/offensive. RD (plus bas = meilleur) va du
+  // vert (bas) au rouge (haut) ; RO (plus haut = meilleur) va du rouge (bas)
+  // au vert (haut).
+  sheet.clearConditionalFormatRules();
+  var rdRule = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([sheet.getRange(2, 21, nRows, 1)])
+    .setGradientMinpoint(COLOR_WIN)
+    .setGradientMidpointWithValue('#ffffff', SpreadsheetApp.InterpolationType.PERCENTILE, '50')
+    .setGradientMaxpoint(COLOR_LOSS)
+    .build();
+  var roRule = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([sheet.getRange(2, 26, nRows, 1)])
+    .setGradientMinpoint(COLOR_LOSS)
+    .setGradientMidpointWithValue('#ffffff', SpreadsheetApp.InterpolationType.PERCENTILE, '50')
+    .setGradientMaxpoint(COLOR_WIN)
+    .build();
+  sheet.setConditionalFormatRules([rdRule, roRule]);
+}
+
+/**
+ * Construit les lignes de transactions triées Classe → Pool → Équipe →
+ * Partie #, avec cumul PP/PC/MO/MD par équipe calculé ligne par ligne (pas
+ * via computeTeamStats, qui ne donne que le total final).
+ * @return {Array<{key:string, values:Array}>}
+ */
+function buildLedgerRows(gamesByClasse) {
+  // 1) Aplatit chaque partie en 2 transactions (équipe locale / visiteuse).
+  var tx = [];
+  CLASSES.forEach(function (classe) {
+    (gamesByClasse[classe] || []).forEach(function (g) {
+      tx.push(makeLedgerTx(classe, g, true));    // perspective équipe locale
+      tx.push(makeLedgerTx(classe, g, false));   // perspective équipe visiteuse
+    });
+  });
+
+  // 2) Tri Classe → Pool → Équipe (alpha) → Partie # (numérique, repli texte).
+  tx.sort(function (a, b) {
+    if (a.classe !== b.classe) { return a.classe.localeCompare(b.classe); }
+    if (a.pool !== b.pool) { return a.pool - b.pool; }
+    if (a.equipe !== b.equipe) { return a.equipe.localeCompare(b.equipe, 'fr'); }
+    var pa = parseInt(a.partie, 10), pb = parseInt(b.partie, 10);
+    if (isNaN(pa) || isNaN(pb)) { return String(a.partie).localeCompare(String(b.partie)); }
+    return pa - pb;
+  });
+
+  // 3) Accumulation ligne par ligne par équipe (clé classe|pool|équipe) : les
+  //    lignes d'une même équipe étant déjà contiguës après le tri, un simple
+  //    reset au changement de clé suffit.
+  var rows = [];
+  var cum = null;
+  var curKey = null;
+  tx.forEach(function (t) {
+    var key = t.classe + '|' + t.pool + '|' + t.equipe;
+    if (key !== curKey) { cum = { pp: 0, pc: 0, mo: 0, md: 0 }; curKey = key; }
+
+    cum.pp += t.ppRow;
+    cum.pc += t.pcRow;
+    cum.mo += t.moRow;
+    cum.md += t.mdRow;
+
+    var rd = cum.md > 0 ? (cum.pc / cum.md).toFixed(3) : '—';
+    var ro = cum.mo > 0 ? (cum.pp / cum.mo).toFixed(3) : '—';
+
+    rows.push({
+      key: key,
+      resultat: t.resultat,
+      locVis: t.locVis,
+      values: [
+        t.classe, t.pool, t.partie, t.jour, t.heure, t.terrain,
+        t.equipe, t.adversaire, t.resultat, t.score, t.locVis,
+        t.manches, t.retraits, t.manchesPrevues, t.type, t.pointageRegl,
+        t.pcRow, cum.pc, formatFraction(t.mdRow), formatFraction(cum.md), rd,
+        t.ppRow, cum.pp, formatFraction(t.moRow), formatFraction(cum.mo), ro
+      ]
+    });
+  });
+  return rows;
+}
+
+/**
+ * Construit UNE transaction (une équipe pour un match donné).
+ * @param {string}  classe
+ * @param {Object}  g          partie (retour de getGameResults)
+ * @param {boolean} isLocal    perspective équipe locale (true) ou visiteuse (false)
+ */
+function makeLedgerTx(classe, g, isLocal) {
+  var equipe     = isLocal ? g.local : g.visiteur;
+  var adversaire = isLocal ? g.visiteur : g.local;
+  var ppRow = isLocal ? g.scoreLocal : g.scoreVisiteur;   // PP réel de CETTE partie
+  var pcRow = isLocal ? g.scoreVisiteur : g.scoreLocal;   // PC réel de CETTE partie
+  var moRow = isLocal ? g.offLocal : g.offVisiteur;       // MO réel (suppl. incluses)
+  var mdRow = isLocal ? g.defLocal : g.defVisiteur;       // MD réel (suppl. incluses)
+
+  var resultat = (g.winner === equipe) ? 'Victoire'
+               : (g.winner === '' ? 'Nul' : 'Défaite');
+
+  var locVis = (g.homeKnown === false) ? 'Inconnu' : (isLocal ? 'Local' : 'Visiteur');
+
+  // « Pointage régl. (suppl.) » : identique pour les 2 équipes (score nul
+  // réglementaire X), uniquement si Type de fin = Supplémentaires ET résolu
+  // (Note 4, Art. 42.11).
+  var pointageRegl = (g.type === 'Supplémentaires' && !g.suppNeedsTie) ? g.regRsLocal : '';
+
+  return {
+    classe: classe, pool: g.pool, partie: g.partie,
+    jour: g.jour, heure: g.heure, terrain: g.terrain,
+    equipe: equipe, adversaire: adversaire,
+    resultat: resultat,
+    score: ppRow + '-' + pcRow,
+    locVis: locVis,
+    manches: g.manches, retraits: g.retraits, manchesPrevues: g.manchesPrevues,
+    type: g.type, pointageRegl: pointageRegl,
+    ppRow: ppRow, pcRow: pcRow, moRow: moRow, mdRow: mdRow
+  };
+}
+
+// ============================================================================
 //  EFFACER LES RÉSULTATS
 // ============================================================================
 
@@ -3072,7 +3379,8 @@ function exportSheetsToZip() {
   var ui = SpreadsheetApp.getUi();
   var names = [
     SHEET_RESULTS['A'], SHEET_RESULTS['B'],
-    SHEET_STANDINGS['A'], SHEET_STANDINGS['B']
+    SHEET_STANDINGS['A'], SHEET_STANDINGS['B'],
+    SHEET_LEDGER
   ];
 
   var blobs = [];
@@ -3155,7 +3463,8 @@ function reorderSheets(ss) {
     SHEET_HELP,
     SHEET_CONFIG,
     SHEET_RESULTS['A'], SHEET_RESULTS['B'],
-    SHEET_STANDINGS['A'], SHEET_STANDINGS['B']
+    SHEET_STANDINGS['A'], SHEET_STANDINGS['B'],
+    SHEET_LEDGER
   ];
   order.forEach(function (name, idx) {
     var s = ss.getSheetByName(name);
