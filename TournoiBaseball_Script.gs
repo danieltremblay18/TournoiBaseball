@@ -928,12 +928,15 @@ function createHelpSheet(ss) {
     'un compte de banque : les colonnes "Somme PP/PC/MO/MD" (EN GRAS) cumulent ' +
     'progressivement d\'un match à l\'autre pour une même équipe, alors que RD et RO sont ' +
     'recalculés à chaque ligne (jamais cumulés). Elle se reconstruit automatiquement en ' +
-    'même temps que les classements (menu ou mise à jour auto).');
+    'même temps que les classements (menu ou mise à jour auto). Les premières colonnes ' +
+    '(Cl, Pl, #, J, H, T, Eq, Adv, Res, Sco) sont abrégées pour économiser l\'espace ; ' +
+    'survolez l\'en-tête pour voir le nom complet.');
   addText(
     'Repères visuels : la colonne "Équipe" est verte et "Adversaire" rouge quand l\'équipe ' +
     'de la ligne gagne (l\'inverse si elle perd) ; "Loc/Vis" est bleu pâle (locale) ou ' +
     'orange pâle (visiteuse) ; RD et RO ont un dégradé de couleur (vert = bon, rouge = ' +
-    'moins bon) ; un trait souligne la dernière ligne de chaque équipe (son "solde final").');
+    'moins bon) ; des traits séparent les blocs (moyen = fin d\'équipe, épais = fin de ' +
+    'pool, double = fin de classe).');
   addText(
     'Utile en cas de doute sur un classement : le "solde final" de chaque équipe (dernière ' +
     'ligne de son bloc) doit correspondre exactement à ses colonnes PP/PC/MO/MD dans le ' +
@@ -2848,25 +2851,39 @@ function writeSemifinalSummary(sheet, startRow, classe, orderedFirsts, orderedSe
 // match). 2 lignes par match (équipe locale + équipe visiteuse), 3 matchs par
 // équipe, 24 équipes (2 classes x 3 pools x 4 équipes) → 72 lignes au total.
 var LEDGER_HEADERS = [
-  'Classe', 'Pool', 'Partie #', 'Jour', 'Heure', 'Terrain',
-  'Équipe', 'Adversaire', 'Résultat', 'Score', 'Loc/Vis',
-  'Manches complètes', 'Retraits en fin', 'Manches prévues', 'Type de fin',
-  'Pointage régl. (suppl.)',
+  'Cl', 'Pl', '#', 'J', 'H', 'T',
+  'Eq', 'Adv', 'Res', 'Sco', 'Loc/Vis',
+  'Manches\ncomplètes', 'Retraits\nen\nfin', 'Manches\nprévues', 'Type\nde\nfin',
+  'Pointage\nrégl.\n(suppl.)',
   'PC', 'Somme PC', 'MD', 'Somme MD', 'RD',
   'PP', 'Somme PP', 'MO', 'Somme MO', 'RO'
 ];
 
 var LEDGER_HEADER_NOTES = {
-  1:  'GRAND LIVRE — audit façon « compte bancaire » : chaque ligne est une ' +
-      'TRANSACTION (une équipe dans un match, 2 lignes par match). Trié ' +
-      'Classe → Pool → Équipe (les 3 matchs de chaque équipe regroupés) → ' +
-      'Partie #. Les colonnes « Somme X » (EN GRAS) CUMULENT progressivement ' +
-      'pour l\'équipe de la ligne (comme un solde qui augmente) ; le cumul ' +
-      'final de chaque équipe (dernière ligne de son bloc, soulignée d\'un ' +
-      'trait) doit correspondre EXACTEMENT à PP/PC/MO/MD affichés dans le ' +
-      'tableau de pool (feuille Classements). Équipe (vert) / Adversaire ' +
-      '(rouge) indiquent la gagnante de la partie. Sert à retracer, en cas ' +
-      'd\'écart, à quel match précis il apparaît.',
+  1:  'CL — abrégé de « Classe ». GRAND LIVRE — audit façon « compte ' +
+      'bancaire » : chaque ligne est une TRANSACTION (une équipe dans un ' +
+      'match, 2 lignes par match). Trié Classe → Pool → Équipe (les 3 ' +
+      'matchs de chaque équipe regroupés) → Partie #. Les colonnes ' +
+      '« Somme X » (EN GRAS) CUMULENT progressivement pour l\'équipe de la ' +
+      'ligne (comme un solde qui augmente) ; le cumul final de chaque ' +
+      'équipe (dernière ligne de son bloc) doit correspondre EXACTEMENT à ' +
+      'PP/PC/MO/MD affichés dans le tableau de pool (feuille Classements). ' +
+      'Équipe (vert) / Adversaire (rouge) indiquent la gagnante de la ' +
+      'partie. Traits de séparation à 3 niveaux : trait moyen = fin ' +
+      'd\'équipe, trait épais = fin de pool, double trait = fin de classe. ' +
+      'Sert à retracer, en cas d\'écart, à quel match précis il apparaît.',
+  2:  'PL — abrégé de « Pool ».',
+  3:  '# — abrégé de « Partie # ».',
+  4:  'J — abrégé de « Jour ».',
+  5:  'H — abrégé de « Heure ».',
+  6:  'T — abrégé de « Terrain ».',
+  7:  'EQ — abrégé de « Équipe ». Équipe dont cette ligne retrace le cumul ' +
+      '(vert si elle a gagné cette partie, rouge si elle l\'a perdue).',
+  8:  'ADV — abrégé de « Adversaire ».',
+  9:  'RES — abrégé de « Résultat ». Victoire / Défaite / Nul du point de ' +
+      'vue de l\'équipe de cette ligne (colonne Eq).',
+  10: 'SCO — abrégé de « Score ». Toujours « Eq-Adv » (l\'équipe de cette ' +
+      'ligne en premier).',
   11: 'LOC/VIS — bleu pâle = Local, orange pâle = Visiteur. « Inconnu » (non ' +
       'coloré) si l\'équipe locale n\'a pas été précisée dans Résultats ' +
       '(colonne « Équipe Locale ») : dans ce cas les manches sont calculées ' +
@@ -2891,12 +2908,13 @@ function writeLedgerHeaders(sheet) {
   styleHeader(sheet.getRange(1, 1, 1, LEDGER_HEADERS.length));
   applyHeaderNotes(sheet, 1, LEDGER_HEADER_NOTES);
 
-  var widths = [55, 45, 70, 90, 70, 70, 170, 170, 80, 70, 80,
-                110, 100, 110, 110, 150, 55, 80, 65, 80, 70,
+  var widths = [32, 32, 40, 65, 55, 55, 170, 170, 70, 55, 80,
+                70, 60, 70, 100, 80, 55, 80, 65, 80, 70,
                 55, 80, 65, 80, 70];
   for (var c = 0; c < widths.length; c++) { sheet.setColumnWidth(c + 1, widths[c]); }
   sheet.setFrozenRows(1);
-  sheet.setFrozenColumns(8);   // Classe..Adversaire restent visibles au défilement
+  sheet.setFrozenColumns(8);   // Cl..Adv restent visibles au défilement
+  sheet.autoResizeRows(1, 1);  // ajuste la hauteur de l'en-tête aux libellés sur 2-3 lignes
 }
 
 /**
@@ -2949,10 +2967,24 @@ function buildLedgerSheet(ss) {
   fullRange.setBackground(COLOR_CALC);
   fullRange.setFontWeight('normal');
 
+  // Alignement uniforme : centré partout, sauf Eq/Adv (colonnes 7-8, noms
+  // d'équipes) laissées à gauche pour rester faciles à lire.
+  fullRange.setHorizontalAlignment('center');
+  sheet.getRange(2, 7, nRows, 2).setHorizontalAlignment('left');
+
   // Colonnes « Somme » (cumul) : seules colonnes en gras, pour les distinguer
   // d'un coup d'œil des valeurs PC/MD/PP/MO « de cette partie » à côté.
   [18, 20, 23, 25].forEach(function (col) {
     sheet.getRange(2, col, nRows, 1).setFontWeight('bold');
+  });
+
+  // RD et RO (colonnes 21 et 26) : encore plus mises en évidence (gras +
+  // taille de police augmentée, l'API Sheets n'offrant pas de graisse au-delà
+  // du gras) — ce sont les ratios décisifs des bris d'égalité.
+  [21, 26].forEach(function (col) {
+    var range = sheet.getRange(2, col, nRows, 1);
+    range.setFontWeight('bold');
+    range.setFontSize(12);
   });
 
   var band = false;
@@ -2981,14 +3013,29 @@ function buildLedgerSheet(ss) {
       sheet.getRange(sheetRow, 11).setBackground(COLOR_VISITOR);
     }
 
-    // Bordure sous la dernière ligne de chaque équipe (son « solde final »),
-    // pour repérer la fin de chaque bloc sans recourir au gras (réservé aux
-    // colonnes Somme ci-dessus).
-    var isLastOfTeam = (i === rows.length - 1) || (rows[i + 1].key !== r.key);
-    if (isLastOfTeam) {
-      sheet.getRange(sheetRow, 1, 1, LEDGER_HEADERS.length)
-        .setBorder(null, null, true, null, null, null,
-                   '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    // Bordure sous la dernière ligne de chaque bloc (équipe / pool / classe),
+    // pour repérer chaque niveau de regroupement sans recourir au gras
+    // (réservé aux colonnes Somme ci-dessus). Hiérarchie croissante :
+    // équipe (trait moyen) < pool (trait épais) < classe (double trait).
+    // Un bloc classe/pool est toujours aussi une fin de bloc équipe (tri
+    // Classe → Pool → Équipe → Partie #), donc un seul niveau, le plus
+    // englobant, suffit à choisir.
+    var isLast = (i === rows.length - 1);
+    var next = isLast ? null : rows[i + 1];
+    var isLastOfTeam   = isLast || next.key !== r.key;
+    var isLastOfPool   = isLast || next.classe !== r.classe || next.pool !== r.pool;
+    var isLastOfClasse = isLast || next.classe !== r.classe;
+
+    var rowRange = sheet.getRange(sheetRow, 1, 1, LEDGER_HEADERS.length);
+    if (isLastOfClasse) {
+      rowRange.setBorder(null, null, true, null, null, null,
+                         '#000000', SpreadsheetApp.BorderStyle.DOUBLE);
+    } else if (isLastOfPool) {
+      rowRange.setBorder(null, null, true, null, null, null,
+                         '#000000', SpreadsheetApp.BorderStyle.SOLID_THICK);
+    } else if (isLastOfTeam) {
+      rowRange.setBorder(null, null, true, null, null, null,
+                         '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
     }
   });
 
@@ -3058,6 +3105,8 @@ function buildLedgerRows(gamesByClasse) {
 
     rows.push({
       key: key,
+      classe: t.classe,
+      pool: t.pool,
       resultat: t.resultat,
       locVis: t.locVis,
       values: [
