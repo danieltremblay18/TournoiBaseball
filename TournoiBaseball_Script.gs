@@ -1648,9 +1648,37 @@ function calculateStep(teams, games, useAllGames, forced) {
  */
 function orderTeams(teams, games, useAllGames, forced) {
   if (teams.length <= 1) { return teams.slice(); }
+  forced = forced || {};
 
-  // Trie l'ensemble via tiebreaker (qui gère récursivement les sous-égalités).
-  return tiebreaker(teams.slice(), games, useAllGames, forced || {});
+  // Étapes B/C : un SEUL groupe, portée = toutes les parties impliquant une des
+  // équipes (elles ne se sont jamais affrontées, cf. Note « étapes B et C » de
+  // l'Art. 42.11). Comportement inchangé.
+  if (useAllGames) {
+    return tiebreaker(teams.slice(), games, true, forced);
+  }
+
+  // Étape A : structure à DEUX niveaux (Art. 42.11).
+  //  1) Regrouper par fiche GLOBALE (V-D sur toutes les parties du pool) — c'est
+  //     ce qui détermine QUI est à égalité, et l'ordre ENTRE les groupes.
+  //  2) Pour CHAQUE groupe à égalité, départager sur la portée RESTREINTE aux
+  //     parties jouées ENTRE ces équipes (tête-à-tête) : tiebreaker(group, …, false)
+  //     pose relevantGames = headToHeadGames(group). La restriction de portée n'a
+  //     lieu QU'ICI (premier découpage) ; la récursion Note 2 interne d'applyPriorities
+  //     garde ensuite la portée du groupe (ce que l'exemple QC/RS/CN exige).
+  var groups = groupByMetric(teams.slice(), function (t) {
+    var st = computeTeamStats(t, games, false);
+    return st.v - st.d;
+  }, true);
+
+  var ordered = [];
+  var manual = false;
+  groups.forEach(function (grp) {
+    var sub = tiebreaker(grp, games, false, forced);
+    if (sub.__needsManualCheck) { manual = true; }
+    sub.forEach(function (t) { ordered.push(t); });
+  });
+  if (manual) { ordered.__needsManualCheck = true; }
+  return ordered;
 }
 
 /**
@@ -2357,6 +2385,12 @@ var FORCE_RANK_NOTE =
  * @return {string} libellé du critère, avec les valeurs comparées
  */
 function decisiveCriterion(hi, lo) {
+  // P1 : fiche tête-à-tête (V-D dans les parties entre les équipes à égalité).
+  // Dans un groupe affiché (regroupé par fiche GLOBALE), deux équipes peuvent
+  // différer sur leur fiche tête-à-tête restreinte -> c'est alors le critère décisif.
+  if ((hi.v - hi.d) !== (lo.v - lo.d)) {
+    return 'Fiche ' + hi.v + '-' + hi.d + ' > ' + lo.v + '-' + lo.d;
+  }
   // P2 : ratio défensif RA/DefInn — le plus BAS gagne.
   if (!approxEqual(hi.raRatio, lo.raRatio)) {
     return 'RD ' + round3(hi.raRatio) + ' < ' + round3(lo.raRatio);
@@ -2477,22 +2511,24 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
   var P4   = '⚠ Manuel (P4)';       // libellé renvoyé par decisiveCriterion en P4
   var row  = startRow;
 
-  // Portée fixée — IDENTIQUE à tiebreaker() pour la même passe.
-  var relevantGames = useAllGames
+  // Portée de REGROUPEMENT (identification des égalités) : fiche GLOBALE — le même
+  // critère que le moteur (orderTeams) pour découper orderedNames en groupes.
+  //  - Étape A : toutes les parties du pool passé -> fiche V-D globale du pool.
+  //  - Étapes B/C : toutes les parties impliquant une des équipes.
+  var groupScope = useAllGames
     ? games.filter(function (g) {
         return teams.indexOf(g.local) !== -1 || teams.indexOf(g.visiteur) !== -1;
       })
-    : headToHeadGames(teams, games);
+    : games;
 
-  // Stats par équipe sur la portée (même appel qu'applyPriorities).
-  var statByTeam = {};
+  var groupStat = {};
   orderedNames.forEach(function (t) {
-    statByTeam[t] = computeTeamStats(t, relevantGames, useAllGames);
+    groupStat[t] = computeTeamStats(t, groupScope, useAllGames);
   });
-  function vd(t) { return statByTeam[t].v - statByTeam[t].d; }
+  function vd(t) { return groupStat[t].v - groupStat[t].d; }
 
-  // Regroupe l'ordre final en « runs » de fiche V-D identique (Priorité 1). Ces
-  // équipes sont forcément consécutives (le tri primaire du moteur est la fiche).
+  // Regroupe l'ordre final en « runs » de fiche GLOBALE identique. Ces équipes
+  // sont forcément consécutives (le tri primaire du moteur est la fiche globale).
   var runs = [];
   orderedNames.forEach(function (t) {
     var last = runs[runs.length - 1];
@@ -2500,6 +2536,7 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
     else { runs.push([t]); }
   });
   var tieGroups = runs.filter(function (r) { return r.length >= 2; });
+  var anySuppInScope = false;   // -> bandeau Note 4 (portées d'affichage réunies)
 
   // Titre du bloc.
   var scopeLabel = useAllGames ? 'toutes parties de pool' : 'tête-à-tête';
@@ -2532,6 +2569,17 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
   // Un sous-bloc par groupe à égalité (séparés par une ligne vide).
   tieGroups.forEach(function (grp, gi) {
     if (gi > 0) { row++; }   // espace entre groupes
+
+    // Portée D'AFFICHAGE de CE groupe — identique à celle que le moteur a utilisée
+    // pour départager ces équipes (Art. 42.11) :
+    //  - Étape A : parties jouées STRICTEMENT entre les équipes de ce groupe (tête-à-tête).
+    //  - Étapes B/C : toute la portée « impliquant » (Note 2, non re-restreinte).
+    var scope = useAllGames ? groupScope : headToHeadGames(grp, games);
+    if (scope.some(gameIsSupp)) { anySuppInScope = true; }
+    var statByTeam = {};
+    grp.forEach(function (t) {
+      statByTeam[t] = computeTeamStats(t, scope, useAllGames);
+    });
 
     // Détecte les SOUS-GROUPES Priorité 4 du groupe : suites d'équipes consécutives
     // dont le moteur n'a pu départager aucun couple (decisiveCriterion = P4). Ce sont
@@ -2588,8 +2636,8 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
     });
   });
 
-  // Note 4 si une partie de la portée est allée en supplémentaires.
-  if (relevantGames.some(gameIsSupp)) {
+  // Note 4 si une partie affichée (une des portées de groupe) est allée en supplémentaires.
+  if (anySuppInScope) {
     sheet.getRange(row, c0, 1, nAll).merge();
     sheet.getRange(row, c0)
       .setValue('ℹ Manches supplémentaires exclues des ratios RD/RO (Note 4, Art. 42.11).')

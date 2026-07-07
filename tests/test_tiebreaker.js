@@ -130,65 +130,92 @@ var pdfOk = pdfOrder.join(' > ') === 'QC > CN > RS';
 console.log((pdfOk ? '  OK   ' : '  ÉCHEC') + ' : QC > CN > RS (continue à P3, ne recommence pas à P1)');
 if (!pdfOk) { allOk = false; }
 
+// --- Test : Étape A restreinte aux parties ENTRE les équipes à égalité ---------
+// Art. 42.11, Étape A / Priorité 1 : « la meilleure fiche V-D dans les parties
+// ENTRE LES ÉQUIPES À ÉGALITÉ ». La portée du bris doit donc être le tête-à-tête
+// du sous-groupe réellement à égalité, PAS toutes les parties du pool.
+//
+// Pool de 4. Fiches GLOBALES : B et C à 2-1 (à égalité en tête), A et D à 1-2.
+// En tête-à-tête : C a battu B (7-2) et A a battu D (5-1). Chaque égalité se
+// résout donc dès la Priorité 1 : C > B et A > D. Ordre attendu : C > B > A > D,
+// SANS vérification manuelle.
+//
+// C'est la régression du bug corrigé : l'ANCIEN code passait tout le pool au
+// bris, si bien que B et C restaient « à égalité 2-1 » (fiche globale) et que le
+// duel direct C>B n'était jamais consulté — B se retrouvait devant C. Ce test
+// échoue sur l'ancien code (B avant C) et passe sur le code corrigé.
+var h2hGames = [
+  game(1, 'A', 'B', 1, 5), // B bat A
+  game(1, 'C', 'A', 5, 1), // C bat A
+  game(1, 'A', 'D', 5, 1), // A bat D  <- duel direct {A,D}
+  game(1, 'C', 'B', 7, 2), // C bat B  <- duel direct {B,C}
+  game(1, 'B', 'D', 8, 0), // B bat D
+  game(1, 'D', 'C', 8, 0)  // D bat C
+];
+var h2hOrder = orderTeams(['A', 'B', 'C', 'D'], h2hGames, false);
+
+console.log('\n--- Vérification : Étape A = parties entre équipes à égalité ---');
+console.log('  Ordre produit : ' + h2hOrder.join(' > ') + ' (attendu : C > B > A > D)');
+var h2hOrderOk = h2hOrder.join(' > ') === 'C > B > A > D';
+var h2hFlagOk  = h2hOrder.__needsManualCheck !== true;
+console.log((h2hOrderOk ? '  OK   ' : '  ÉCHEC') +
+            ' : le gagnant du duel direct est classé 1er (C>B par tête-à-tête, A>D par tête-à-tête)');
+console.log((h2hFlagOk ? '  OK   ' : '  ÉCHEC') +
+            ' : résolu dès la Priorité 1 (aucun drapeau manuel)');
+if (!h2hOrderOk || !h2hFlagOk) { allOk = false; }
+
 // --- Test : Priorité 4 (manuelle) après épuisement des ratios P2/P3 -----------
 // Art. 42.11, Note 2 : on CONTINUE aux priorités suivantes (pas de retour à la
-// P1) ; une fois P2 et P3 épuisées sans départage, la priorité suivante est la
+// P1) ; une fois P1/P2/P3 épuisées sans départage, la priorité suivante est la
 // P4 (« manches avec l'avance au pointage »), NON automatisable (feuille de
 // pointage) -> drapeau de vérification manuelle.
 //
-// 4 équipes à égalité. P1 (sur les 4) sépare {B,C} (fiche 2-1) au-dessus de
-// {A,D} (fiche 1-2). {B,C} CONTINUE à P2/P3 sur la portée des 4 : B et C ont des
-// ratios défensif ET offensif IDENTIQUES (RA 8, RS 13, 18 manches chacun) -> P2
-// et P3 ne séparent rien -> P4 -> drapeau manuel + ordre alphabétique provisoire.
-// {A,D} restent séparables par P2 (D RA 11 < A RA 13) -> D avant A.
-//
-// Le duel direct est gagné par C (5-3) : l'ANCIEN code bogué (retour-à-P1
-// re-restreint au duel) aurait donné C > B SANS drapeau. Le code correct donne
-// B > C (alphabétique) AVEC drapeau. Les deux assertions ensemble le prouvent.
+// Égalité à 3 PARFAITEMENT symétrique : A bat B, B bat C, C bat A, TOUTES 5-3.
+// Fiche globale : chacune 1-1 (à égalité). Tête-à-tête : circulaire (chacune 1-1)
+// -> P1 ne sépare pas. RS = RA = 8 et 12 manches off/déf pour chacune -> P2 et P3
+// IDENTIQUES -> aucun départage automatique -> P4 -> drapeau manuel + ordre
+// alphabétique provisoire (A > B > C).
 var p4Games = [
-  game(1, 'C', 'B', 5, 3), // C bat B  <- duel direct (NON consulté : on s'arrête à P4)
-  game(1, 'B', 'A', 6, 1), // B bat A
-  game(1, 'B', 'D', 4, 2), // B bat D
-  game(1, 'C', 'A', 6, 2), // C bat A
-  game(1, 'D', 'C', 3, 2), // D bat C
-  game(1, 'A', 'D', 5, 1)  // A bat D
+  game(1, 'A', 'B', 5, 3), // A bat B
+  game(1, 'B', 'C', 5, 3), // B bat C
+  game(1, 'C', 'A', 5, 3)  // C bat A
 ];
-var p4Order = orderTeams(['A', 'B', 'C', 'D'], p4Games, false);
+var p4Order = orderTeams(['A', 'B', 'C'], p4Games, false);
 
 console.log('\n--- Vérification : Priorité 4 manuelle (Note 2) ---');
-console.log('  Ordre produit : ' + p4Order.join(' > ') + ' (attendu : B > C > D > A)');
+console.log('  Ordre produit : ' + p4Order.join(' > ') + ' (attendu : A > B > C)');
 console.log('  __needsManualCheck : ' + (p4Order.__needsManualCheck === true));
-var p4OrderOk = p4Order.join(' > ') === 'B > C > D > A';
+var p4OrderOk = p4Order.join(' > ') === 'A > B > C';
 var p4FlagOk  = p4Order.__needsManualCheck === true;
 console.log((p4OrderOk ? '  OK   ' : '  ÉCHEC') +
-            ' : B > C alphabétique (PAS le duel C>B) ; D > A par P2');
+            ' : ordre alphabétique provisoire (égalité circulaire + ratios identiques)');
 console.log((p4FlagOk ? '  OK   ' : '  ÉCHEC') +
             ' : drapeau vérification manuelle levé (P4 atteinte, pas de retour à P1)');
 if (!p4OrderOk || !p4FlagOk) { allOk = false; }
 
 // --- Test : override « Forcer rang » (résolution manuelle de la Priorité 4) ----
-// Même scénario P4 que ci-dessus ({B,C} indissociables en P4 ; {A,D} séparés par
-// P2 -> D>A). Le registraire calcule la P4 sur papier puis saisit l'ordre via la
-// colonne « Forcer rang » (param `forced` = map équipe -> numéro). Seul l'ordre
-// RELATIF compte ; résolu ssi aucun doublon ET au plus une équipe sans numéro.
-//  (1) {C:1,B:2}  -> C avant B  -> C>B>D>A, drapeau LEVÉ (P4 résolue).
-//  (2) {B:1} seul -> 1 numéro + 1 blanc -> B avant C, résolu (au plus 1 blanc).
-//  (3) {B:1,C:1}  -> doublon -> NON résolu, drapeau conservé.
-var fOrder1 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { C: 1, B: 2 });
-var fOrder2 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { B: 1 });
-var fOrder3 = orderTeams(['A', 'B', 'C', 'D'], p4Games, false, { B: 1, C: 1 });
+// Même scénario P4 que ci-dessus ({A,B,C} indissociables en P4). Le registraire
+// calcule la P4 sur papier puis saisit l'ordre via la colonne « Forcer rang »
+// (param `forced` = map équipe -> numéro). Seul l'ordre RELATIF compte ; résolu
+// ssi aucun doublon ET au plus une équipe sans numéro.
+//  (1) {C:1,B:2}  -> C, B numérotées, A sans (1 blanc) -> C>B>A, drapeau LEVÉ.
+//  (2) {A:1,C:2}  -> A, C numérotées, B sans (1 blanc) -> A>C>B, résolu.
+//  (3) {A:1,B:1}  -> doublon -> NON résolu, drapeau conservé.
+var fOrder1 = orderTeams(['A', 'B', 'C'], p4Games, false, { C: 1, B: 2 });
+var fOrder2 = orderTeams(['A', 'B', 'C'], p4Games, false, { A: 1, C: 2 });
+var fOrder3 = orderTeams(['A', 'B', 'C'], p4Games, false, { A: 1, B: 1 });
 
 console.log('\n--- Vérification : override « Forcer rang » (Priorité 4) ---');
 console.log('  (1) Ordre produit : ' + fOrder1.join(' > ') +
             ' | drapeau : ' + (fOrder1.__needsManualCheck === true));
 var forcedChecks = [
-  ['(1) {C:1,B:2} -> C > B > D > A',
-   fOrder1.join(' > ') === 'C > B > D > A'],
+  ['(1) {C:1,B:2} -> C > B > A',
+   fOrder1.join(' > ') === 'C > B > A'],
   ['(1) drapeau LEVÉ (P4 résolue par override)',
    fOrder1.__needsManualCheck !== true],
-  ['(2) {B:1} (1 blanc) -> B > C > D > A, résolu',
-   fOrder2.join(' > ') === 'B > C > D > A' && fOrder2.__needsManualCheck !== true],
-  ['(3) {B:1,C:1} doublon -> drapeau conservé',
+  ['(2) {A:1,C:2} (1 blanc) -> A > C > B, résolu',
+   fOrder2.join(' > ') === 'A > C > B' && fOrder2.__needsManualCheck !== true],
+  ['(3) {A:1,B:1} doublon -> drapeau conservé',
    fOrder3.__needsManualCheck === true],
   ['resolveForcedRanks {C:1,B:2} -> résolu, ordre C,B',
    resolveForcedRanks(['B', 'C'], { C: 1, B: 2 }).resolved === true &&
@@ -417,4 +444,5 @@ if (!allOk) {
   console.error('\nÉCHEC : un test ne se comporte pas comme attendu.');
   process.exit(1);
 }
-console.log('\nSUCCÈS : bris d\'égalité (P2) + isRowComplete + gameIsSupp + Note 4 + Note 5 + forçage 2e OK.');
+console.log('\nSUCCÈS : bris d\'égalité (P2 + Étape A tête-à-tête + P4) + isRowComplete + ' +
+            'gameIsSupp + Note 4 + Note 5 + forçage 2e OK.');
