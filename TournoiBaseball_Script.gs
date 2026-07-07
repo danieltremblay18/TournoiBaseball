@@ -45,6 +45,11 @@ var SHEET_RESULTS     = { 'A': 'Résultats A', 'B': 'Résultats B' };
 var SHEET_STANDINGS   = { 'A': 'Classements A', 'B': 'Classements B' };
 var SHEET_LEDGER      = 'Grand livre';
 
+// Numéro de version de l'application (le code lui-même). À incrémenter à la main
+// lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
+// public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
+var APP_VERSION = '1.0.0';
+
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
 var TEAMS_PER_POOL = 4;
@@ -3632,7 +3637,8 @@ function doGet(e) {
   var data = {
     A: computeStandingsModel(ss, 'A'),
     B: computeStandingsModel(ss, 'B'),
-    matches: matches
+    matches: matches,
+    version: APP_VERSION
   };
   return HtmlService.createHtmlOutput(renderPublicHtml_(data))
     .setTitle('Classements — Tournoi 13U')
@@ -3964,6 +3970,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var anyModel = DATA.A || DATA.B;
     foot.appendChild(el('div', null, anyModel ? ('Mis à jour : ' + (anyModel.updatedAt || '')) : ''));
     foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
+    foot.appendChild(el('div', null, DATA.version ? ('Version ' + DATA.version) : ''));
 
     document.querySelectorAll('#seg-mode button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-mode') === state.mode);
