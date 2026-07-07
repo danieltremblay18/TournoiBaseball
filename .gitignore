@@ -7,3 +7,6 @@ Thumbs.db
 
 # Dossier de travail temporaire (Claude)
 claude-temp-dan/
+
+# Métadonnées locales Visual Studio
+.vs/
