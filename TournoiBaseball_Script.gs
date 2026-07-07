@@ -2154,8 +2154,12 @@ function buildStandingsSheet(ss, classe, games) {
   var firsts  = [];   // 1er de chaque pool
   var seconds = [];   // 2e de chaque pool
   var poolStatsByTeam = {};   // team -> stats globales (pour affichage B/C)
+  var poolData = [];   // données calculées par pool, écrites après le calcul des demi-finalistes
 
-  // -------- SECTIONS 1-3 : un classement par pool --------
+  // -------- SECTIONS 1-3 (calcul) : un classement par pool --------
+  // En deux passes : la colonne « Avancement » doit identifier les 4 demi-finalistes
+  // réels (Étapes B/C ci-dessous), qui dépendent des standings de TOUS les pools —
+  // donc on calcule d'abord, on n'écrit qu'une fois ces 4 équipes connues.
   POOLS.forEach(function (p) {
     var teams = teamsByPool[p] || [];
     var poolGames = games.filter(function (g) { return g.pool === p; });
@@ -2168,22 +2172,40 @@ function buildStandingsSheet(ss, classe, games) {
     var markedInPool = teams.filter(function (t) { return overrideByTeam[t]; });
     var secondRep = resolveSecondRepresentative(standings, markedInPool);
 
-    row = writePoolSection(sheet, row, classe, p, standings, poolGames,
-                           markedInPool, secondRep, forcedPool);
+    poolData.push({ pool: p, standings: standings, poolGames: poolGames,
+                     markedInPool: markedInPool, secondRep: secondRep, forcedPool: forcedPool });
 
     standings.forEach(function (s) {
       poolStatsByTeam[s.team] = s;
       if (s.rank === 1) { firsts.push({ team: s.team, pool: p }); }
     });
     seconds.push({ team: secondRep.team, pool: p, forced: secondRep.forced });
+  });
 
+  // -------- Étapes B/C : les 4 demi-finalistes --------
+  var firstTeams = firsts.map(function (f) { return f.team; });
+  var forcedC = forcedRanks['C'] || {};
+  var orderedFirsts = calculateStep(firstTeams, games, true, forcedC);
+
+  var secondTeams = seconds.map(function (s) { return s.team; });
+  var forcedB = forcedRanks['B'] || {};
+  var orderedSeconds = calculateStep(secondTeams, games, true, forcedB);
+
+  // team -> numéro de demi-finale (1-4). Seules CES 4 équipes au total (toutes pools
+  // confondues) avancent : les 1ers de pool (positions 1-3) et le seul meilleur 2e
+  // retenu (position 4) — un 2e non retenu, un 3e ou un 4e ne reçoit rien.
+  var seedByTeam = {};
+  orderedFirsts.slice(0, 3).forEach(function (team, i) { seedByTeam[team] = i + 1; });
+  if (orderedSeconds.length > 0) { seedByTeam[orderedSeconds[0]] = 4; }
+
+  // -------- SECTIONS 1-3 (écriture) : un classement par pool --------
+  poolData.forEach(function (pd) {
+    row = writePoolSection(sheet, row, classe, pd.pool, pd.standings, pd.poolGames,
+                           pd.markedInPool, pd.secondRep, pd.forcedPool, seedByTeam);
     row += 1;  // espace entre sections
   });
 
   // -------- SECTION 4 : Étape C — classement des 1ers --------
-  var firstTeams = firsts.map(function (f) { return f.team; });
-  var forcedC = forcedRanks['C'] || {};
-  var orderedFirsts = calculateStep(firstTeams, games, true, forcedC);
   row = writeAdvancementSection(
     sheet, row, classe,
     'SECTION 4 — CLASSEMENT DES 1ers (Positions 1-2-3) — Étape C',
@@ -2192,9 +2214,6 @@ function buildStandingsSheet(ss, classe, games) {
   row += 1;
 
   // -------- SECTION 5 : Étape B — meilleur 2e (position 4) --------
-  var secondTeams = seconds.map(function (s) { return s.team; });
-  var forcedB = forcedRanks['B'] || {};
-  var orderedSeconds = calculateStep(secondTeams, games, true, forcedB);
   row = writeAdvancementSection(
     sheet, row, classe,
     'SECTION 5 — MEILLEUR 2e (Position 4) — Étape B',
@@ -2239,7 +2258,9 @@ var POOL_HEADER_NOTES = {
       'jouées (supplémentaires incluses). Le plus HAUT est le meilleur. 3e critère de bris ' +
       'd\'égalité (Art. 42.11). Le tableau de bris d\'égalité, lui, exclut les supplémentaires ' +
       '(Note 4).',
-  12: 'AVANCEMENT — Qualification déduite du rang (ex. 1er de pool, meilleur 2e, etc.).',
+  12: 'AVANCEMENT — Numéro de demi-finale (1 à 4) UNIQUEMENT pour les 4 équipes qui s\'y ' +
+      'qualifient réellement (les 3 gagnants de pool + le seul meilleur 2e retenu, Sections ' +
+      '4-5 ci-dessous) ; vide pour toutes les autres (2e non retenu, 3e, 4e de pool).',
   13: 'FORCER 2e — Réservé à l\'admin. COCHER la case à côté d\'une équipe pour la désigner ' +
       'comme représentante de ce pool au « Meilleur 2e » (Étape B), à la place du 2e ' +
       'automatique ; DÉCOCHER pour revenir au 2e automatique. Utile quand une victoire par ' +
@@ -2585,12 +2606,15 @@ function writeTiebreakTable(sheet, startRow, teams, games, orderedNames, useAllG
  * @param {Array}  markedInPool noms des équipes du pool marquées « 2 » (forçage admin du 2e).
  * @param {Object} secondRep    résultat de resolveSecondRepresentative (team/forced/warning).
  * @param {Object} forced       rangs forcés « Forcer rang » de ce pool (Priorité 4).
+ * @param {Object} seedByTeam   team -> numéro de demi-finale (1-4), pour les 4 SEULES
+ *                              équipes (toutes pools confondues) qui s'y qualifient.
  */
 function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
-                          markedInPool, secondRep, forced) {
+                          markedInPool, secondRep, forced, seedByTeam) {
   markedInPool = markedInPool || [];
   secondRep = secondRep || { team: '', forced: false, warning: '' };
   forced = forced || {};
+  seedByTeam = seedByTeam || {};
   var row = startRow;
 
   // Titre de section.
@@ -2612,7 +2636,10 @@ function writePoolSection(sheet, startRow, classe, pool, standings, poolGames,
   // Lignes d'équipes.
   var firstTeamRow = row;
   standings.forEach(function (s) {
-    var advancement = advancementLabel(s.rank);
+    // Demi-finale (1-4) SEULEMENT pour les 4 équipes qui s'y qualifient réellement
+    // (1er de pool + le seul meilleur 2e retenu) — pas le rang de pool brut, qui
+    // duplique la colonne « Rang » et n'indique pas la qualification.
+    var advancement = seedByTeam[s.team] || '';
     // Tableau de pool : ratios RÉELS (toutes manches jouées, suppl. incluses).
     // L'exclusion des supplémentaires (Note 4) n'est appliquée que dans le tableau
     // de bris d'égalité à droite.
@@ -3390,14 +3417,6 @@ function formatFraction(decimal) {
 /** Arrondit à 3 décimales pour l'affichage des ratios. */
 function round3(x) {
   return Math.round(x * 1000) / 1000;
-}
-
-/** Étiquette d'avancement selon le rang dans un pool. */
-function advancementLabel(rank) {
-  if (rank === 1) { return '1er'; }
-  if (rank === 2) { return '2e'; }
-  if (rank === 3) { return '3e'; }
-  return '4e';
 }
 
 /** Couleur associée à un pool. */
