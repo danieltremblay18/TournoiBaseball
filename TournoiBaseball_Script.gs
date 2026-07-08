@@ -48,7 +48,7 @@ var SHEET_LEDGER      = 'Grand livre';
 // Numéro de version de l'application (le code lui-même). À incrémenter à la main
 // lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
 // public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
-var APP_VERSION = '1.0.0';
+var APP_VERSION = '1.0.2';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -3641,7 +3641,7 @@ function doGet(e) {
     version: APP_VERSION
   };
   return HtmlService.createHtmlOutput(renderPublicHtml_(data))
-    .setTitle('Classements — Tournoi 13U')
+    .setTitle('Tournoi provincial de baseball 13U 2026 de Rimouski')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -3951,7 +3951,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 <body>
 <div id="app">
   <header>
-    <h1>🏆 Tournoi de Baseball 13U</h1>
+    <h1>🏆 TOURNOI PROVINCIAL DE BASEBALL 13U 2026 DE RIMOUSKI</h1>
     <div id="subtitle"></div>
   </header>
   <div id="main-view">
