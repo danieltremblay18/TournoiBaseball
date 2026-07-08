@@ -1,4 +1,4 @@
-# Règles de Régie 2026 — Division 13U
+# Règles de Régie 2026 — Division 13U (classes A et B)
 > Baseball Québec | Référence superviseur de tournoi
 
 ---
@@ -16,15 +16,15 @@
 > **Note :** Le monticule est **facultatif** en 13U (Art. 107.3).
 
 ### Équipement (Art. 103.x)
-| Élément | 13U B | 13U A | 13U AA |
-|---|---|---|---|
-| Crampons métalliques | ❌ Non | ❌ Non | ❌ Non |
-| Bâton — limite DROP | Aucune limite | Aucune limite | DROP -10 max |
-| Certification bâton requise | USSSA, USA ou BBCOR | USSSA, USA ou BBCOR | USSSA, USA ou BBCOR |
-| Balle | 9 pouces de circonférence | 9 po | 9 po |
-| Casque | 2 oreilles obligatoire | 2 oreilles | 2 oreilles |
-| Coussin double 1er but | ✅ Oui | ✅ Oui | ✅ Oui |
-| Rectangle du frappeur | ✅ Oui | ✅ Oui | ✅ Oui |
+| Élément | 13U B | 13U A |
+|---|---|---|
+| Crampons métalliques | ❌ Non | ❌ Non |
+| Bâton — limite DROP | Aucune limite | Aucune limite |
+| Certification bâton requise | USSSA, USA ou BBCOR | USSSA, USA ou BBCOR |
+| Balle | 9 pouces de circonférence | 9 po |
+| Casque | 2 oreilles obligatoire | 2 oreilles |
+| Coussin double 1er but | ✅ Oui | ✅ Oui |
+| Rectangle du frappeur | ✅ Oui | ✅ Oui |
 
 > **Bâton illégal :** Frappeur retiré pour action irrégulière. Aucun joueur ne peut avancer, mais les retraits effectués sont maintenus.
 
@@ -43,10 +43,8 @@
 
 | Classe | Limite de temps |
 |---|---|
-| 13U AA et A | Toute manche débutant après **80 minutes (1h20)** est déclarée dernière manche (ouverte) |
+| 13U A | Toute manche débutant après **80 minutes (1h20)** est déclarée dernière manche (ouverte) |
 | 13U B | Toute manche débutant après **70 minutes (1h10)** est déclarée dernière manche (ouverte) |
-
-> ⚠️ **Exception 13U AA :** Pas de limite de temps au **championnat provincial 13U AA** ni aux **Jeux du Québec**.
 
 - La durée est mesurée à partir du « Play Ball » et se termine à la fin de la manche offensive locale (3e retrait ou limite de points atteinte)
 - Tout arrêt de la partie de **plus de 10 minutes** n'est **pas** comptabilisé dans la durée
@@ -64,14 +62,14 @@ Si égalité au terme des manches réglementaires ou du temps alloué :
 
 ### 3.1 Coureurs sur les buts
 
-| Situation | 13U B | 13U A | 13U AA |
-|---|---|---|---|
-| Quitter son but | Seulement quand la balle traverse le marbre ou est frappée | Librement (règles BCan) | Librement (règles BCan) |
-| Vol de but | ✅ Permis | ✅ Permis | ✅ Permis |
-| Vol du marbre | ✅ Permis | ✅ Permis | ✅ Permis |
-| Atteindre le marbre | Seulement si balle frappée ou forcé | Règles BCan | Règles BCan |
-| Chandelle intérieure | ❌ Ne s'applique pas | ✅ Oui | ✅ Oui |
-| Amorti (coup retenu) | ❌ Non (balle morte + prise) | ✅ Permis | ✅ Permis |
+| Situation | 13U B | 13U A |
+|---|---|---|
+| Quitter son but | Seulement quand la balle traverse le marbre ou est frappée | Librement (règles BCan) |
+| Vol de but | ✅ Permis | ✅ Permis |
+| Vol du marbre | ❌ Non permis | ✅ Permis |
+| Atteindre le marbre | Seulement si balle frappée ou forcé | Règles BCan |
+| Chandelle intérieure | ❌ Ne s'applique pas | ✅ Oui |
+| Amorti (coup retenu) | ❌ Non (balle morte + prise) | ✅ Permis |
 
 > **13U B :** Lorsque le lanceur reçoit la balle et prend place sur sa plaque et que le receveur est en position, les coureurs doivent retourner à leurs buts.
 
@@ -81,7 +79,6 @@ Si égalité au terme des manches réglementaires ou du temps alloué :
 |---|---|
 | 13U B | Frappeur retiré automatiquement — balle au jeu — coureurs peuvent avancer **sauf au marbre** et lors d'écarts de pointage |
 | 13U A | Règle officielle de baseball (BCan) s'applique |
-| 13U AA | Règle officielle de baseball (BCan) s'applique |
 
 ### 3.3 Feinte irrégulière
 
@@ -89,15 +86,14 @@ Si égalité au terme des manches réglementaires ou du temps alloué :
 |---|---|
 | 13U B | Aucune feinte irrégulière appelée — balle morte, coureurs retournent à leur but |
 | 13U A | Règle officielle de baseball (BCan) s'applique |
-| 13U AA | Règle officielle de baseball (BCan) s'applique |
 
 ---
 
 ## 4. Équité de jeu
 
-### 4.1 Rôle offensif (Art. 103.14 pour B/A — Art. 107.10 pour AA)
+### 4.1 Rôle offensif (Art. 103.14)
 
-S'applique aux **trois classes** (B, A, AA) :
+S'applique aux **deux classes** (B, A) :
 - Tous les joueurs sont inscrits à l'ordre des frappeurs et frappent à leur tour
 - Joueur arrivant en cours de partie → inscrit au **dernier rang**
 - Joueur quittant en cours de partie → retiré de l'ordre (**aucun retrait automatique**)
@@ -110,7 +106,6 @@ S'applique aux **trois classes** (B, A, AA) :
 |---|---|
 | 13U B | **3 points** maximum par manche |
 | 13U A | **5 points** maximum par manche |
-| 13U AA | Aucune limite (règles BCan) |
 
 > **Circuit par-dessus les clôtures :** L'équipe est créditée de **tous ses points**, même si la limite est dépassée.
 
@@ -119,7 +114,7 @@ S'applique aux **trois classes** (B, A, AA) :
 - Une fois cet écart atteint, la demi-manche visiteuse prend fin
 - L'équipe receveuse est alors limitée à tenter de faire une **partie nulle**
 
-### 4.2 Rôle défensif (Art. 103.14b — 13U B et A seulement, NON applicable en AA)
+### 4.2 Rôle défensif (Art. 103.14b — 13U B et A)
 
 - Les joueurs sur le banc à la **1re manche** se joignent sur base **rotative** à compter de la 2e manche
 - Un joueur **ne peut passer 2 manches consécutives** sur le banc
@@ -137,7 +132,6 @@ S'applique aux **trois classes** (B, A, AA) :
 |---|---|
 | 13U B | ❌ Non applicable |
 | 13U A | ✅ Sous conditions |
-| 13U AA | ✅ Applicable |
 
 **Lorsqu'une équipe a 5 points d'avance ou plus :**
 - Le coureur de cette équipe peut atteindre le but suivant **seulement si la balle est frappée ou s'il est forcé d'avancer**
@@ -150,7 +144,6 @@ S'applique aux **trois classes** (B, A, AA) :
 |---|---|
 | 13U B | ✅ Tout joueur peut revenir en tout temps à n'importe quelle position, **sauf lanceur s'il a déjà lancé** |
 | 13U A | ✅ Idem |
-| 13U AA | Règles standard — retour seulement dans le cadre de l'équité de jeu (Art. 107.10) |
 
 ---
 
@@ -165,7 +158,6 @@ S'applique aux **trois classes** (B, A, AA) :
 |---|---|
 | 13U B | ❌ Interdits |
 | 13U A | ✅ Permis — l'entraîneur avise l'arbitre, balle morte, frappeur au 1er but automatiquement |
-| 13U AA | ✅ Permis — idem (les balles automatiques ne comptent pas dans le décompte des lancers) |
 
 ### 5.3 Saison régulière — manches lancées
 
@@ -232,7 +224,6 @@ En tournoi/championnat, **deux** règles d'écart s'appliquent en séquence :
 ### Réservistes en compétition (Art. 48.1)
 | Classe | Règle |
 |---|---|
-| 13U AA | Un réserviste peut évoluer à la position de **lanceur** |
 | 13U A | Un réserviste **ne peut pas** évoluer à la position de lanceur |
 | 13U B | Un réserviste **ne peut pas** évoluer à la position de lanceur — et **ne peut pas** utiliser un réserviste de classe A |
 
@@ -245,7 +236,7 @@ En tournoi/championnat, **deux** règles d'écart s'appliquent en séquence :
 ### Détermination receveur/visiteur en championnat (Art. 40.4)
 | Classe | Procédure |
 |---|---|
-| 13U AA et A | 1re partie : déterminée par le classement de la saison précédente. Toutes les autres parties : **tirage au sort 30 min avant** |
+| 13U A | 1re partie : déterminée par le classement de la saison précédente. Toutes les autres parties : **tirage au sort 30 min avant** |
 | 13U B | **Tirage au sort 30 min avant**, pour **toutes** les parties |
 
 > Si une équipe est absente au tirage au sort, elle **perd son tirage**.
@@ -320,7 +311,7 @@ Définies selon le même bris d'égalité que l'Étape A, en utilisant toutes le
 - > Exception : les entraîneurs-adjoints peuvent faire la rencontre d'avant-partie au marbre et les visites au monticule
 
 ### Règle des 60 secondes (Art. 103.23)
-- Toutes les classes (AA, A, B) : changements défensifs/offensifs dans un délai de **60 secondes**
+- Toutes les classes (A, B) : changements défensifs/offensifs dans un délai de **60 secondes**
 - L'arbitre des buts chronomètre à partir du dernier retrait
 - À l'expiration : l'officiel du marbre appelle **un dernier lancer** au lanceur
 - **5 lancers de réchauffement** accordés (sans limite de temps) **seulement** lors de :
@@ -332,6 +323,10 @@ Définies selon le même bris d'égalité que l'Étape A, en utilisant toutes le
 - La partie **orange** = utilisée par le frappeur-coureur sur un jeu au 1er but (ou 3e prise échappée)
 - Après avoir dépassé le 1er but, le coureur peut se diriger vers le 2e **sans retoucher la partie blanche**
 
+### Coureur de courtoisie (Art. 103.16)
+- **Aucun coureur de courtoisie** n'est permis (même pour le receveur) en 13U A et B
+- S'il est utilisé par erreur, la situation est corrigée dès qu'elle est constatée, **sans autre sanction**
+
 ### Uniforme (Art. 103.3)
 - Uniforme complet obligatoire pour joueurs et entraîneurs
 - Short, camisole et sandales : **interdits**
@@ -340,35 +335,34 @@ Définies selon le même bris d'égalité que l'Étape A, en utilisant toutes le
 
 ## 10. Résumé rapide par classe
 
-| Règle | 13U B | 13U A | 13U AA |
-|---|---|---|---|
-| Crampons métalliques | ❌ | ❌ | ❌ |
-| DROP bâton | Aucune limite | Aucune limite | -10 max |
-| Balles | 9 po | 9 po | 9 po |
-| Manches / partie | 6 | 6 | 6 |
-| Points max / manche | 3 | 5 | Aucune limite |
-| Équité défensive | ✅ | ✅ | ❌ |
-| Équité offensive | ✅ | ✅ | ✅ (107.10) |
-| Restriction avance 5 pts | ❌ | ✅ sous conditions | ✅ |
-| Coureurs libres | ❌ (balle au marbre) | ✅ | ✅ |
-| Amorti permis | ❌ | ✅ | ✅ |
-| Chandelle intérieure | ❌ | ✅ | ✅ |
-| 3e prise échappée | Retiré auto | Règles BCan | Règles BCan |
-| Feinte irrégulière | Non appelée | Règles BCan | Règles BCan |
-| BSB intentionnel | ❌ | ✅ | ✅ |
-| Retour au jeu | ✅ (103.14d) | ✅ (103.14d) | Limité (107.10) |
-| Réserviste comme lanceur (comp.) | ❌ | ❌ | ✅ |
-| Réserviste de classe A (comp.) | ❌ | ✅ | ✅ |
-| Manches lanceur (mai-juin) | 2/jour — 4/sem | 2/jour — 4/sem | 2/jour — 4/sem |
-| Manches lanceur (juil-sept) | 3/jour — 6/sem | 3/jour — 6/sem | 3/jour — 6/sem |
-| Lancers compétition (repos 1j) | 41–55 | 41–55 | 41–55 |
-| Lancers max / jour (compétition) | 85 | 85 | 85 |
-| Écart 15 pts (comp. – 3e manche) | ✅ | ✅ | ✅ |
-| Écart 10 pts (saison – 4e manche) | ✅ | ✅ | ✅ |
-| Limite de temps (tournoi) | **70 min** | **80 min** | **80 min** * |
-| Manches supplémentaires | ✅ (1er/2e buts) | ✅ | ✅ |
-
-> *Pas de limite de temps au **championnat provincial 13U AA** ni aux **Jeux du Québec**
+| Règle | 13U B | 13U A |
+|---|---|---|
+| Crampons métalliques | ❌ | ❌ |
+| DROP bâton | Aucune limite | Aucune limite |
+| Balles | 9 po | 9 po |
+| Manches / partie | 6 | 6 |
+| Points max / manche | 3 | 5 |
+| Équité défensive | ✅ | ✅ |
+| Équité offensive | ✅ | ✅ |
+| Restriction avance 5 pts | ❌ | ✅ sous conditions |
+| Coureurs libres | ❌ (balle au marbre) | ✅ |
+| Amorti permis | ❌ | ✅ |
+| Chandelle intérieure | ❌ | ✅ |
+| 3e prise échappée | Retiré auto | Règles BCan |
+| Feinte irrégulière | Non appelée | Règles BCan |
+| BSB intentionnel | ❌ | ✅ |
+| Retour au jeu | ✅ (103.14d) | ✅ (103.14d) |
+| Coureur de courtoisie (103.16) | ❌ | ❌ |
+| Réserviste comme lanceur (comp.) | ❌ | ❌ |
+| Réserviste de classe A (comp.) | ❌ | ✅ |
+| Manches lanceur (mai-juin) | 2/jour — 4/sem | 2/jour — 4/sem |
+| Manches lanceur (juil-sept) | 3/jour — 6/sem | 3/jour — 6/sem |
+| Lancers compétition (repos 1j) | 41–55 | 41–55 |
+| Lancers max / jour (compétition) | 85 | 85 |
+| Écart 15 pts (comp. – 3e manche) | ✅ | ✅ |
+| Écart 10 pts (saison – 4e manche) | ✅ | ✅ |
+| Limite de temps (tournoi) | **70 min** | **80 min** |
+| Manches supplémentaires | ✅ (1er/2e buts) | ✅ |
 
 ---
 

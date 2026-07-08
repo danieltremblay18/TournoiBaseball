@@ -3679,12 +3679,165 @@ function showPublicUrl() {
  */
 function renderPublicHtml_(data) {
   var json = JSON.stringify(data).replace(/</g, '\\u003c');
-  return PUBLIC_HTML_TEMPLATE_.replace('/*__DATA__*/', 'window.DATA = ' + json + ';');
+  // Forme fonctionnelle pour le bloc règles : neutralise les motifs « $ » de
+  // String.replace (le texte des règles contient « 100 $ »).
+  return PUBLIC_HTML_TEMPLATE_
+    .replace('/*__DATA__*/', 'window.DATA = ' + json + ';')
+    .replace('/*__RULES__*/', function(){ return RULES_HTML_; });
 }
 
 // Gabarit de la page publique. Le code client n'utilise NI backticks NI « ${ } »
 // pour ne pas interférer avec ce template literal serveur ; les données sont
 // injectées via le repère /*__DATA__*/ par renderPublicHtml_.
+// Contenu statique des règles (13U classes A et B), généré depuis
+// Regles13U_2026.md (revalidé vs ReglesRegie2026.pdf). Injecté dans la page via
+// le repère /*__RULES__*/ par renderPublicHtml_. N’utilise NI backtick NI « ${ } »
+// afin de ne pas interférer avec les template literals serveur.
+var RULES_HTML_ = `
+<div class="rules-title">Règles de Régie 2026 — Division 13U (classes A et B)</div>
+<div class="rules-sub">Baseball Québec | Référence superviseur de tournoi</div>
+<section>
+<h2>1. Terrain et équipement</h2>
+<h3>Dimensions du terrain (Art. 104.3)</h3>
+<div class="rwrap"><table><thead><tr><th>Élément</th><th>Mesure</th></tr></thead><tbody><tr><td>Distance entre les buts</td><td>70 pi (21,34 m)</td></tr><tr><td>Marbre → plaque du lanceur</td><td>48 pi (14,63 m)</td></tr><tr><td>Clôture extérieure (coin)</td><td>210 pi (64 m) idéalement</td></tr><tr><td>Clôture extérieure (centre)</td><td>240 pi (73 m) idéalement</td></tr></tbody></table></div>
+<div class="callout"><p><strong>Note :</strong> Le monticule est <strong>facultatif</strong> en 13U (Art. 107.3).</p></div>
+<h3>Équipement (Art. 103.x)</h3>
+<div class="rwrap"><table><thead><tr><th>Élément</th><th>13U B</th><th>13U A</th></tr></thead><tbody><tr><td>Crampons métalliques</td><td>❌ Non</td><td>❌ Non</td></tr><tr><td>Bâton — limite DROP</td><td>Aucune limite</td><td>Aucune limite</td></tr><tr><td>Certification bâton requise</td><td>USSSA, USA ou BBCOR</td><td>USSSA, USA ou BBCOR</td></tr><tr><td>Balle</td><td>9 pouces de circonférence</td><td>9 po</td></tr><tr><td>Casque</td><td>2 oreilles obligatoire</td><td>2 oreilles</td></tr><tr><td>Coussin double 1er but</td><td>✅ Oui</td><td>✅ Oui</td></tr><tr><td>Rectangle du frappeur</td><td>✅ Oui</td><td>✅ Oui</td></tr></tbody></table></div>
+<div class="callout"><p><strong>Bâton illégal :</strong> Frappeur retiré pour action irrégulière. Aucun joueur ne peut avancer, mais les retraits effectués sont maintenus.</p></div>
+<div class="callout"><p><strong>Entraîneur ≤ 18 ans sur les buts :</strong> doit porter un casque à 2 oreilles (Art. 103.1c).</p></div>
+</section>
+<section>
+<h2>2. Durée des parties</h2>
+<h3>Saison régulière (Art. 107.1)</h3>
+<ul><li><strong>6 manches</strong> à finir (si conditions le permettent)</li><li><strong>Partie réglementaire :</strong> 3 ½ manches si l'équipe locale est en avance</li><li><strong>Forfait :</strong> 15 minutes après l'heure prévue sans le nombre minimum de joueurs (9)</li></ul>
+<h3>Compétitions provinciales (Art. 42.3)</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Limite de temps</th></tr></thead><tbody><tr><td>13U A</td><td>Toute manche débutant après <strong>80 minutes (1h20)</strong> est déclarée dernière manche (ouverte)</td></tr><tr><td>13U B</td><td>Toute manche débutant après <strong>70 minutes (1h10)</strong> est déclarée dernière manche (ouverte)</td></tr></tbody></table></div>
+<ul><li>La durée est mesurée à partir du « Play Ball » et se termine à la fin de la manche offensive locale (3e retrait ou limite de points atteinte)</li><li>Tout arrêt de la partie de <strong>plus de 10 minutes</strong> n'est <strong>pas</strong> comptabilisé dans la durée</li><li>En cas d'<strong>égalité au terme du temps</strong>, la partie se poursuit — toutes les manches subséquentes sont <strong>ouvertes</strong> (sans limite de points)</li></ul>
+<h3>Manches supplémentaires (Art. 42.4)</h3>
+<p>Si égalité au terme des manches réglementaires ou du temps alloué :</p>
+<ul><li>Chaque équipe débute la manche supplémentaire avec <strong>un coureur au 1er but et un coureur au 2e but, aucun retrait</strong></li><li>L'ordre : si le 6e frappeur était le dernier de la manche précédente → 7e frappeur au bâton, 5e frappeur au 2e but, 6e frappeur au 1er but</li><li>S'applique pour <strong>toutes les parties</strong>, incluant les médailles</li></ul>
+</section>
+<section>
+<h2>3. Règles de jeu — par classe</h2>
+<h3>3.1 Coureurs sur les buts</h3>
+<div class="rwrap"><table><thead><tr><th>Situation</th><th>13U B</th><th>13U A</th></tr></thead><tbody><tr><td>Quitter son but</td><td>Seulement quand la balle traverse le marbre ou est frappée</td><td>Librement (règles BCan)</td></tr><tr><td>Vol de but</td><td>✅ Permis</td><td>✅ Permis</td></tr><tr><td>Vol du marbre</td><td>❌ Non permis</td><td>✅ Permis</td></tr><tr><td>Atteindre le marbre</td><td>Seulement si balle frappée ou forcé</td><td>Règles BCan</td></tr><tr><td>Chandelle intérieure</td><td>❌ Ne s'applique pas</td><td>✅ Oui</td></tr><tr><td>Amorti (coup retenu)</td><td>❌ Non (balle morte + prise)</td><td>✅ Permis</td></tr></tbody></table></div>
+<div class="callout"><p><strong>13U B :</strong> Lorsque le lanceur reçoit la balle et prend place sur sa plaque et que le receveur est en position, les coureurs doivent retourner à leurs buts.</p></div>
+<h3>3.2 Frappeur — 3e prise échappée</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Règle</th></tr></thead><tbody><tr><td>13U B</td><td>Frappeur retiré automatiquement — balle au jeu — coureurs peuvent avancer <strong>sauf au marbre</strong> et lors d'écarts de pointage</td></tr><tr><td>13U A</td><td>Règle officielle de baseball (BCan) s'applique</td></tr></tbody></table></div>
+<h3>3.3 Feinte irrégulière</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Règle</th></tr></thead><tbody><tr><td>13U B</td><td>Aucune feinte irrégulière appelée — balle morte, coureurs retournent à leur but</td></tr><tr><td>13U A</td><td>Règle officielle de baseball (BCan) s'applique</td></tr></tbody></table></div>
+</section>
+<section>
+<h2>4. Équité de jeu</h2>
+<h3>4.1 Rôle offensif (Art. 103.14)</h3>
+<p>S'applique aux <strong>deux classes</strong> (B, A) :</p>
+<ul><li>Tous les joueurs sont inscrits à l'ordre des frappeurs et frappent à leur tour</li><li>Joueur arrivant en cours de partie → inscrit au <strong>dernier rang</strong></li><li>Joueur quittant en cours de partie → retiré de l'ordre (<strong>aucun retrait automatique</strong>)</li><li>Si un joueur ne peut compléter sa présence au bâton : remplacé par le frappeur suivant <strong>avec le même compte</strong></li><li>Si un coureur ne peut compléter sa présence sur les buts : remplacé par le <strong>dernier retrait</strong> (peut avancer seulement si balle frappée ou forcé)</li><li>Si un joueur <strong>saute son tour</strong> au bâton mais demeure dans la partie : <strong>1 retrait comptabilisé</strong></li></ul>
+<h4>Points maximum par manche</h4>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Limite</th></tr></thead><tbody><tr><td>13U B</td><td><strong>3 points</strong> maximum par manche</td></tr><tr><td>13U A</td><td><strong>5 points</strong> maximum par manche</td></tr></tbody></table></div>
+<div class="callout"><p><strong>Circuit par-dessus les clôtures :</strong> L'équipe est créditée de <strong>tous ses points</strong>, même si la limite est dépassée.</p></div>
+<h4>Manche ouverte (saison régulière seulement — 13U B et A)</h4>
+<ul><li>Lors d'une manche ouverte, l'équipe <strong>visiteuse</strong> peut prendre un maximum de <strong>10 points d'avance</strong></li><li>Une fois cet écart atteint, la demi-manche visiteuse prend fin</li><li>L'équipe receveuse est alors limitée à tenter de faire une <strong>partie nulle</strong></li></ul>
+<h3>4.2 Rôle défensif (Art. 103.14b — 13U B et A)</h3>
+<ul><li>Les joueurs sur le banc à la <strong>1re manche</strong> se joignent sur base <strong>rotative</strong> à compter de la 2e manche</li><li>Un joueur <strong>ne peut passer 2 manches consécutives</strong> sur le banc</li><li>Ne peut retourner au banc avant que <strong>tous les autres joueurs aient passé une manche complète</strong> sur le banc</li><li><strong>Exceptions :</strong> lanceur actuellement au monticule, blessure, balle à la tête</li><li>L'entraîneur-chef <strong>doit aviser le marqueur</strong> de l'identité des joueurs sur le banc à chaque manche</li></ul>
+<p><strong>Sanctions :</strong></p>
+<ol><li>1re intervention : temps d'arrêt, avertissement à l'entraîneur-chef</li><li>2e intervention : expulsion de l'entraîneur-chef (suspension automatique)</li></ol>
+<h3>4.3 Avance sur les buts avec écart de 5 points (Art. 103.14c)</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Application</th></tr></thead><tbody><tr><td>13U B</td><td>❌ Non applicable</td></tr><tr><td>13U A</td><td>✅ Sous conditions</td></tr></tbody></table></div>
+<p><strong>Lorsqu'une équipe a 5 points d'avance ou plus :</strong></p>
+<ul><li>Le coureur de cette équipe peut atteindre le but suivant <strong>seulement si la balle est frappée ou s'il est forcé d'avancer</strong></li><li><strong>Sans avance sur les buts :</strong> infraction → balle morte, coureur retourné à son but</li><li><strong>Avec avance sur les buts :</strong> infraction → balle morte, coureur retiré (si plusieurs fautifs : seul le plus près du marbre est retiré)</li></ul>
+<h3>4.4 Retour au jeu (Art. 103.14d)</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Règle</th></tr></thead><tbody><tr><td>13U B</td><td>✅ Tout joueur peut revenir en tout temps à n'importe quelle position, <strong>sauf lanceur s'il a déjà lancé</strong></td></tr><tr><td>13U A</td><td>✅ Idem</td></tr></tbody></table></div>
+</section>
+<section>
+<h2>5. Règlement du lanceur</h2>
+<h3>5.1 Visites au monticule (Art. 107.2)</h3>
+<ul><li>2e visite dans la <strong>même manche</strong> : le lanceur doit être retiré (peut jouer à une autre position)</li><li>Un lanceur retiré du monticule <strong>ne peut revenir</strong> à titre de lanceur dans cette partie</li></ul>
+<h3>5.2 Buts sur balle intentionnels</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Règle</th></tr></thead><tbody><tr><td>13U B</td><td>❌ Interdits</td></tr><tr><td>13U A</td><td>✅ Permis — l'entraîneur avise l'arbitre, balle morte, frappeur au 1er but automatiquement</td></tr></tbody></table></div>
+<h3>5.3 Saison régulière — manches lancées</h3>
+<div class="rwrap"><table><thead><tr><th>Période</th><th>Maximum / jour</th><th>Maximum / 7 jours</th></tr></thead><tbody><tr><td>Mai – Juin</td><td>2 manches</td><td>4 manches</td></tr><tr><td>Juillet – Septembre</td><td>3 manches</td><td>6 manches</td></tr></tbody></table></div>
+<div class="callout"><ul><li>Interdit de lancer <strong>3 journées consécutives</strong></li><li>Une journée de repos = <strong>journée complète de calendrier</strong></li><li>Une balle lancée dans une manche compte pour une manche lancée</li><li>Les manches en compétition provinciale <strong>ne sont pas comptabilisées</strong> dans le maximum de 7 jours</li></ul></div>
+<h3>5.4 Compétition provinciale — lancers et repos</h3>
+<div class="rwrap"><table><thead><tr><th>Lancers dans la journée</th><th>Repos requis</th></tr></thead><tbody><tr><td>1 – 40 lancers</td><td>Aucun repos</td></tr><tr><td>41 – 55 lancers</td><td><strong>1 journée</strong> de repos</td></tr><tr><td>56 – 70 lancers</td><td><strong>2 journées</strong> de repos</td></tr><tr><td>71 – 85 lancers</td><td><strong>3 journées</strong> de repos</td></tr></tbody></table></div>
+<div class="callout"><p><strong>Maximum journalier : 85 lancers</strong></p></div>
+<p><strong>Règles spéciales en compétition provinciale :</strong></p>
+<ul><li>Un lanceur peut lancer une 2e journée consécutive <strong>s'il a effectué moins de 41 lancers</strong> la journée précédente</li><li>Le cumulatif maximal sur 2 jours est de <strong>85 lancers</strong></li><li><strong>Interdit de lancer 3 journées consécutives</strong>, peu importe le nombre de lancers</li><li>Un entraîneur peut effectuer une <strong>2e visite</strong> au lanceur pour le retirer, sur le même frappeur dans la même manche (compétition provinciale seulement)</li><li>Un registre officiel des lancers est tenu par une personne assignée (source officielle)</li></ul>
+<p><strong>Règle du frappeur en cours :</strong> Un lanceur ayant atteint une étape (40, 55 ou 70 lancers) peut <strong>terminer sa présence face au frappeur courant</strong> sans pénalité additionnelle s'il n'affronte pas d'autres frappeurs. On indique alors l'étape franchie au registre.</p>
+<p><strong>Pénalité :</strong> Un lanceur inéligible doit être remplacé immédiatement. En compétition provinciale, l'entraîneur-chef <strong>et</strong> le lanceur sont expulsés (suspension automatique). Toutes les actions effectuées par le lanceur demeurent valides.</p>
+</section>
+<section>
+<h2>6. Différence de pointage</h2>
+<h3>Saison régulière (Art. 103.13)</h3>
+<p>La règle de <strong>10 points d'écart</strong> s'applique à toutes les classes 13U :</p>
+<ul><li>Après la <strong>4e manche</strong> complète</li><li>Ou après <strong>3 manches et demie</strong> si l'équipe locale est en avance</li></ul>
+<h3>Compétitions provinciales (Art. 42.3d) — règles supplémentaires</h3>
+<p>En tournoi/championnat, <strong>deux</strong> règles d'écart s'appliquent en séquence :</p>
+<div class="rwrap"><table><thead><tr><th>Écart</th><th>Après la manche</th></tr></thead><tbody><tr><td><strong>15 points</strong></td><td>3e manche complète (ou 2½ si locale en avance)</td></tr><tr><td><strong>10 points</strong></td><td>4e manche complète (ou 3½ si locale en avance)</td></tr></tbody></table></div>
+<div class="callout warn"><p>⚠️ <strong>Règle additionnelle en compétition :</strong> La partie se termine <strong>immédiatement</strong> à partir du moment où une équipe, en raison de la <strong>limitation des points par manche</strong>, ne peut mathématiquement plus remporter la victoire.</p></div>
+</section>
+<section>
+<h2>7. Règles spécifiques aux compétitions provinciales</h2>
+<h3>Forfait (Art. 42.5)</h3>
+<ul><li>Chaque équipe doit se présenter au terrain <strong>au moins 1 heure avant</strong> la partie</li><li>Si une équipe n'aligne pas 9 joueurs dans les <strong>15 minutes</strong> suivant l'heure prévue → <strong>forfait</strong></li><li><strong>Sanction additionnelle au forfait :</strong> tous les lanceurs de la <strong>partie suivante</strong> se voient créditer au registre le nombre de lancers correspondant à la <strong>première étape</strong> de leur division (40 lancers pour 13U), à la date précédant celle de la partie suivante</li></ul>
+<h3>Réservistes en compétition (Art. 48.1)</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Règle</th></tr></thead><tbody><tr><td>13U A</td><td>Un réserviste <strong>ne peut pas</strong> évoluer à la position de lanceur</td></tr><tr><td>13U B</td><td>Un réserviste <strong>ne peut pas</strong> évoluer à la position de lanceur — et <strong>ne peut pas</strong> utiliser un réserviste de classe A</td></tr></tbody></table></div>
+<h3>Équité de jeu — ajout de joueurs en compétition (Art. 48.2)</h3>
+<ul><li>Il <strong>n'est pas permis d'ajouter un joueur en cours de partie</strong> (exception : poursuite d'une partie suspendue)</li><li>Un joueur peut être inscrit à l'ordre des frappeurs même s'il n'est pas encore présent. À son tour au bâton : soit le <strong>retirer définitivement</strong>, soit <strong>prendre un retrait</strong> à chaque occasion où il est absent</li><li>Une équipe peut continuer même si elle descend sous 9 joueurs <strong>pour cause de blessure</strong> (retrait automatique pour le frappeur absent)</li><li>Si l'équipe ne peut plus aligner <strong>7 joueurs en défensive</strong> → forfait</li></ul>
+<h3>Détermination receveur/visiteur en championnat (Art. 40.4)</h3>
+<div class="rwrap"><table><thead><tr><th>Classe</th><th>Procédure</th></tr></thead><tbody><tr><td>13U A</td><td>1re partie : déterminée par le classement de la saison précédente. Toutes les autres parties : <strong>tirage au sort 30 min avant</strong></td></tr><tr><td>13U B</td><td><strong>Tirage au sort 30 min avant</strong>, pour <strong>toutes</strong> les parties</td></tr></tbody></table></div>
+<div class="callout"><p>Si une équipe est absente au tirage au sort, elle <strong>perd son tirage</strong>.</p></div>
+<h3>Protêt en compétition (Art. 42.6)</h3>
+<ul><li>L'avis de protêt doit être donné à l'arbitre <strong>au moment de l'infraction</strong>, avant que le jeu ne reprenne</li><li>Accompagné d'un montant de <strong>100 $</strong> comptant</li><li>Le comité de protêt se réunit <strong>immédiatement</strong> — décision définitive et sans appel</li><li>Remboursement si gain de cause</li></ul>
+<h3>Bris d'égalité (Art. 42.11)</h3>
+<div class="callout warn"><p>⚠️ Les parties nulles sont <strong>interdites</strong> dans les tournois sanctionnés. En cas d'égalité au terme du temps, la procédure de manches supplémentaires s'applique.</p></div>
+<h4>Étape A — Égalité dans une même section</h4>
+<p>Les priorités sont appliquées dans l'ordre suivant :</p>
+<p><strong>Priorité 1 — Fiche tête-à-tête</strong></p>
+<p>L'équipe avec la meilleure fiche victoires-défaites dans les parties <strong>entre les équipes à égalité</strong> est placée plus haut.</p>
+<p><strong>Priorité 2 — Ratio de points accordés (défense)</strong></p>
+<p>Si l'égalité persiste : proportion du nombre de <strong>points accordés</strong> par rapport aux <strong>manches défensives</strong>, pour les parties entre les équipes à égalité.</p>
+<ul><li>Plus le ratio est <em>bas</em>, meilleur est le classement</li><li>Les manches sont calculées en <strong>fractions</strong> (ex. : 4⅓ manches)</li></ul>
+<p><strong>Priorité 3 — Ratio de points marqués (offensive)</strong></p>
+<p>Si l'égalité persiste : proportion du nombre de <strong>points marqués</strong> par rapport aux <strong>manches offensives</strong>, pour les parties entre les équipes à égalité.</p>
+<ul><li>Plus le ratio est <em>élevé</em>, meilleur est le classement</li></ul>
+<p><strong>Priorité 4 — Manches avec l'avance</strong></p>
+<p>Si l'égalité persiste : l'équipe qui a cumulé le plus grand nombre de <strong>manches complètes en avance</strong> au pointage. Un point est accordé à la fin de chaque manche complète à l'équipe qui mène.</p>
+<div class="callout"><p><strong>Notes importantes :</strong></p><ul><li>Aux étapes B et C, <strong>toutes</strong> les parties de la ronde préliminaire sont prises en compte (pas seulement les confrontations directes)</li><li>Lors d'une égalité multiple résolue en partie : on continue avec les priorités restantes pour les équipes encore à égalité, avant de recommencer à la priorité 1</li><li><strong>Mercy rule :</strong> l'équipe gagnante reçoit le crédit de <strong>6 manches défensives</strong> (13U = 6 manches); l'équipe perdante reçoit le crédit du nombre de manches réellement jouées</li><li><strong>Manches supplémentaires :</strong> seuls les points des manches régulières comptent dans les ratios — ne pas inclure les statistiques des manches supplémentaires</li><li><strong>Forfait :</strong> les parties non disputées par forfait ne sont <strong>pas</strong> comptabilisées aux fins du « Meilleur deuxième »</li></ul></div>
+<h4>Étape B — Meilleur deuxième</h4>
+<p>Les équipes ayant terminé <strong>au 2e rang</strong> dans chaque section passent par le même bris d'égalité (Étape A, mais en utilisant <strong>toutes</strong> les parties de la ronde préliminaire) pour déterminer le meilleur deuxième.</p>
+<h4>Étape C — Positions 1 à 3</h4>
+<p>Définies selon le même bris d'égalité que l'Étape A, en utilisant toutes les parties de la ronde préliminaire.</p>
+</section>
+<section>
+<h2>8. Contact et sécurité</h2>
+<h3>Contact coureur/défenseur (Art. 103.10)</h3>
+<ul><li>Les coureurs <strong>doivent glisser ou tenter d'éviter</strong> le joueur défensif</li><li>Contact malicieux (force excessive, intention de blesser) → <strong>expulsion automatique</strong>, qu'il soit offensif ou défensif</li></ul>
+<h3>Joueur atteint à la tête (Art. 103.24a)</h3>
+<p><strong>Frappeur :</strong></p>
+<ul><li>Atteint à la tête par un lancer → droit au 1er but, mais <strong>remplacé par le dernier retrait</strong> comme coureur</li><li>Peut retourner en défensive après la demi-manche s'il est apte</li><li>Au prochain tour au bâton : doit se présenter ou être substitué définitivement (Option 1) ou sauter son tour avec 1 retrait comptabilisé (Option 2)</li></ul>
+<p><strong>Joueur défensif :</strong></p>
+<ul><li>Atteint à la tête → doit être retiré pour la reste de la demi-manche défensive</li><li>Un lanceur retiré peut revenir au monticule s'il est éligible</li></ul>
+</section>
+<section>
+<h2>9. Règles procédurales</h2>
+<h3>Visite aux arbitres (Art. 103.21)</h3>
+<ul><li><strong>Seul l'entraîneur-chef</strong> peut rendre visite à un arbitre</li><li>Raisons permises : changement de lanceur, substitution, dépôt de protêt, explication d'une règle</li><li>Joueur ou entraîneur-adjoint qui conteste une décision de jugement → <strong>expulsion automatique</strong></li><li>Exception : les entraîneurs-adjoints peuvent faire la rencontre d'avant-partie au marbre et les visites au monticule</li></ul>
+<h3>Règle des 60 secondes (Art. 103.23)</h3>
+<ul><li>Toutes les classes (A, B) : changements défensifs/offensifs dans un délai de <strong>60 secondes</strong></li><li>L'arbitre des buts chronomètre à partir du dernier retrait</li><li>À l'expiration : l'officiel du marbre appelle <strong>un dernier lancer</strong> au lanceur</li><li><strong>5 lancers de réchauffement</strong> accordés (sans limite de temps) <strong>seulement</strong> lors de :</li><li>(a) début de chaque demi-manche de la <strong>1re manche</strong></li><li>(b) <strong>substitution de lanceur</strong> en cours de manche</li></ul>
+<h3>Coussin double au 1er but (Art. 103.11)</h3>
+<ul><li>La partie <strong>blanche</strong> = en jeu pour les règles de bonne/fausse balle</li><li>La partie <strong>orange</strong> = utilisée par le frappeur-coureur sur un jeu au 1er but (ou 3e prise échappée)</li><li>Après avoir dépassé le 1er but, le coureur peut se diriger vers le 2e <strong>sans retoucher la partie blanche</strong></li></ul>
+<h3>Coureur de courtoisie (Art. 103.16)</h3>
+<ul><li><strong>Aucun coureur de courtoisie</strong> n'est permis (même pour le receveur) en 13U A et B</li><li>S'il est utilisé par erreur, la situation est corrigée dès qu'elle est constatée, <strong>sans autre sanction</strong></li></ul>
+<h3>Uniforme (Art. 103.3)</h3>
+<ul><li>Uniforme complet obligatoire pour joueurs et entraîneurs</li><li>Short, camisole et sandales : <strong>interdits</strong></li></ul>
+</section>
+<section>
+<h2>10. Résumé rapide par classe</h2>
+<div class="rwrap"><table><thead><tr><th>Règle</th><th>13U B</th><th>13U A</th></tr></thead><tbody><tr><td>Crampons métalliques</td><td>❌</td><td>❌</td></tr><tr><td>DROP bâton</td><td>Aucune limite</td><td>Aucune limite</td></tr><tr><td>Balles</td><td>9 po</td><td>9 po</td></tr><tr><td>Manches / partie</td><td>6</td><td>6</td></tr><tr><td>Points max / manche</td><td>3</td><td>5</td></tr><tr><td>Équité défensive</td><td>✅</td><td>✅</td></tr><tr><td>Équité offensive</td><td>✅</td><td>✅</td></tr><tr><td>Restriction avance 5 pts</td><td>❌</td><td>✅ sous conditions</td></tr><tr><td>Coureurs libres</td><td>❌ (balle au marbre)</td><td>✅</td></tr><tr><td>Amorti permis</td><td>❌</td><td>✅</td></tr><tr><td>Chandelle intérieure</td><td>❌</td><td>✅</td></tr><tr><td>3e prise échappée</td><td>Retiré auto</td><td>Règles BCan</td></tr><tr><td>Feinte irrégulière</td><td>Non appelée</td><td>Règles BCan</td></tr><tr><td>BSB intentionnel</td><td>❌</td><td>✅</td></tr><tr><td>Retour au jeu</td><td>✅ (103.14d)</td><td>✅ (103.14d)</td></tr><tr><td>Coureur de courtoisie (103.16)</td><td>❌</td><td>❌</td></tr><tr><td>Réserviste comme lanceur (comp.)</td><td>❌</td><td>❌</td></tr><tr><td>Réserviste de classe A (comp.)</td><td>❌</td><td>✅</td></tr><tr><td>Manches lanceur (mai-juin)</td><td>2/jour — 4/sem</td><td>2/jour — 4/sem</td></tr><tr><td>Manches lanceur (juil-sept)</td><td>3/jour — 6/sem</td><td>3/jour — 6/sem</td></tr><tr><td>Lancers compétition (repos 1j)</td><td>41–55</td><td>41–55</td></tr><tr><td>Lancers max / jour (compétition)</td><td>85</td><td>85</td></tr><tr><td>Écart 15 pts (comp. – 3e manche)</td><td>✅</td><td>✅</td></tr><tr><td>Écart 10 pts (saison – 4e manche)</td><td>✅</td><td>✅</td></tr><tr><td>Limite de temps (tournoi)</td><td><strong>70 min</strong></td><td><strong>80 min</strong></td></tr><tr><td>Manches supplémentaires</td><td>✅ (1er/2e buts)</td><td>✅</td></tr></tbody></table></div>
+<div class="rules-source">Source : Règlements de Régie Baseball Québec, saison 2026</div>
+</section>
+`;
+
 var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -3754,6 +3907,45 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   table.mtable td.win{font-weight:800; color:#1b5e20;}
   table.mtable tr.pending td{color:#9e9e9e;}
   footer{text-align:center; color:#78909c; font-size:12px; margin-top:6px; line-height:1.5;}
+  /* ---- Règles du tournoi (panneau superposé, ouvert depuis le pied de page) ---- */
+  #rules-link{margin-top:14px; text-align:center;}
+  #btn-rules{
+    width:100%; padding:12px 14px; font-size:15px; font-weight:600;
+    border:1px solid #b0bec5; background:#fff; color:#37474f; border-radius:12px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  #btn-rules:active{background:#eceff1;}
+  #rules{display:none; padding:4px 0 24px;}
+  #btn-rules-back{
+    position:sticky; top:8px; z-index:5; margin:4px 0 12px;
+    padding:10px 14px; font-size:14px; font-weight:600;
+    border:1px solid var(--dark); background:var(--dark); color:#fff;
+    border-radius:999px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .rules-title{font-size:19px; font-weight:800; text-align:center; margin:4px 0 2px;}
+  .rules-sub{font-size:13px; color:#546e7a; text-align:center; margin-bottom:8px;}
+  #rules section{
+    background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.12);
+    padding:12px 14px 16px; margin:0 0 14px;
+  }
+  #rules h2{font-size:17px; margin:2px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--pool);}
+  #rules h3{font-size:15px; margin:14px 0 6px; color:#37474f;}
+  #rules h4{font-size:13.5px; margin:12px 0 5px; color:#546e7a; text-transform:uppercase; letter-spacing:.3px;}
+  #rules p{font-size:14px; line-height:1.5; margin:6px 0;}
+  #rules ul,#rules ol{margin:6px 0; padding-left:20px;}
+  #rules li{font-size:14px; line-height:1.45; margin:3px 0;}
+  #rules .rwrap{overflow-x:auto; margin:8px 0;}
+  #rules table{width:100%; border-collapse:collapse; font-size:13px;}
+  #rules th,#rules td{padding:7px 8px; text-align:left; border:1px solid var(--line); vertical-align:top;}
+  #rules th{background:#eceff1; font-size:12px; text-transform:uppercase; letter-spacing:.3px; color:#455a64;}
+  #rules .callout{
+    background:#f1f8ff; border-left:4px solid #1e88e5; border-radius:0 8px 8px 0;
+    padding:8px 12px; margin:8px 0; font-size:13.5px;
+  }
+  #rules .callout.warn{background:#fff8e1; border-left-color:#f9a825;}
+  #rules .callout p{margin:4px 0; font-size:13.5px;}
+  #rules .callout ul{margin:4px 0;}
+  #rules .rules-source{font-size:12px; color:#78909c; text-align:center; margin-top:10px;}
 </style>
 </head>
 <body>
@@ -3762,6 +3954,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     <h1>🏆 Tournoi de Baseball 13U</h1>
     <div id="subtitle"></div>
   </header>
+  <div id="main-view">
   <div class="controls">
     <div class="seg" id="seg-mode">
       <button data-mode="standings">Classements</button>
@@ -3784,6 +3977,12 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   </div>
   <div id="content"></div>
   <footer id="footer"></footer>
+  <div id="rules-link"><button type="button" id="btn-rules">📋 Règles du tournoi (13U)</button></div>
+  </div>
+  <div id="rules">
+  <button type="button" id="btn-rules-back">← Retour aux classements</button>
+  /*__RULES__*/
+  </div>
 </div>
 <script>
 /*__DATA__*/
@@ -4000,7 +4199,24 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   });
 
   render();
-  setInterval(function(){ location.reload(); }, 60000);
+
+  // Panneau « Règles du tournoi » : superpose les règles sur toute la page et met
+  // en pause le rafraîchissement auto pendant la lecture (repris au retour).
+  var reloadTimer = setInterval(function(){ location.reload(); }, 60000);
+  function openRules(){
+    document.getElementById('main-view').style.display = 'none';
+    document.getElementById('rules').style.display = 'block';
+    clearInterval(reloadTimer);
+    window.scrollTo(0, 0);
+  }
+  function closeRules(){
+    document.getElementById('rules').style.display = 'none';
+    document.getElementById('main-view').style.display = '';
+    reloadTimer = setInterval(function(){ location.reload(); }, 60000);
+    window.scrollTo(0, 0);
+  }
+  document.getElementById('btn-rules').addEventListener('click', openRules);
+  document.getElementById('btn-rules-back').addEventListener('click', closeRules);
 })();
 </script>
 </body>
