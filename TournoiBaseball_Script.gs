@@ -48,7 +48,7 @@ var SHEET_LEDGER      = 'Grand livre';
 // Numéro de version de l'application (le code lui-même). À incrémenter à la main
 // lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
 // public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
-var APP_VERSION = '1.0.2';
+var APP_VERSION = '1.0.3';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -4205,12 +4205,16 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   var reloadTimer = setInterval(function(){ location.reload(); }, 60000);
   function openRules(){
     document.getElementById('main-view').style.display = 'none';
+    // Masque le sous-titre (ex. « Classe B — Pool 2 ») : hors contexte sur la
+    // page des règles, il pourrait porter à confusion.
+    document.getElementById('subtitle').style.display = 'none';
     document.getElementById('rules').style.display = 'block';
     clearInterval(reloadTimer);
     window.scrollTo(0, 0);
   }
   function closeRules(){
     document.getElementById('rules').style.display = 'none';
+    document.getElementById('subtitle').style.display = '';
     document.getElementById('main-view').style.display = '';
     reloadTimer = setInterval(function(){ location.reload(); }, 60000);
     window.scrollTo(0, 0);
