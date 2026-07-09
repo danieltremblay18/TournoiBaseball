@@ -48,7 +48,7 @@ var SHEET_LEDGER      = 'Grand livre';
 // Numéro de version de l'application (le code lui-même). À incrémenter à la main
 // lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
 // public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
-var APP_VERSION = '1.0.3';
+var APP_VERSION = '1.0.5';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -3946,6 +3946,13 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   #rules .callout p{margin:4px 0; font-size:13.5px;}
   #rules .callout ul{margin:4px 0;}
   #rules .rules-source{font-size:12px; color:#78909c; text-align:center; margin-top:10px;}
+  .rules-disclaimer{
+    background:#ffebee; border:1px solid #ef9a9a; border-left:5px solid #c62828;
+    border-radius:0 10px 10px 0; padding:11px 14px; margin:0 0 16px;
+    color:#b71c1c; font-size:13.5px; line-height:1.5;
+  }
+  .rules-disclaimer strong{display:inline; font-weight:800;}
+  .rules-disclaimer strong:first-child{display:block; font-size:14.5px; margin-bottom:4px;}
 </style>
 </head>
 <body>
@@ -3981,6 +3988,10 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
   </div>
   <div id="rules">
   <button type="button" id="btn-rules-back">← Retour aux classements</button>
+  <div class="rules-disclaimer">
+  <strong>⚠️ Document de référence non officiel</strong>
+  Ce résumé des règlements 13U a été préparé par le comité organisateur du tournoi pour faciliter la consultation. Il ne remplace pas les <a href="https://media.publicationsports.com/289/1f1291c1-2d55-674c-8998-0242ac120003" target="_blank">Règlements de Régie de Baseball Québec 2026</a>: <strong>en cas de divergence, la version officielle prévaut.</strong>
+  </div>
   /*__RULES__*/
   </div>
 </div>
