@@ -1301,6 +1301,8 @@ function getMatchRows(classe) {
 
   var data = sheet.getRange(2, 1, last - 1, 15).getValues();          // colonnes A..O
   var disp = sheet.getRange(2, 1, last - 1, 15).getDisplayValues();   // Jour/Heure : texte affiché
+  var tz   = ss.getSpreadsheetTimeZone();
+  var isDate = function (v) { return Object.prototype.toString.call(v) === '[object Date]'; };
   data.forEach(function (r, i) {
     var eq1 = String(r[5]).trim();    // F : Équipe 1
     var eq2 = String(r[6]).trim();    // G : Équipe 2
@@ -1308,8 +1310,13 @@ function getMatchRows(classe) {
 
     var pool    = parseInt(r[0], 10); // A
     var partie  = r[1];               // B : Partie #
-    var jour    = String(disp[i][2]).trim();  // C : Jour (texte affiché)
-    var heure   = String(disp[i][3]).trim();  // D : Heure (texte affiché)
+    // Jour/Heure : version COURTE, sans année (évite un retour à la ligne sur téléphone).
+    // Si la cellule est une vraie date/heure → formatage explicite ; sinon on retire
+    // simplement l'année (« 2026 ») du texte affiché.
+    var jour  = isDate(r[2]) ? Utilities.formatDate(r[2], tz, 'd MMM')
+                             : String(disp[i][2]).replace(/\b\d{4}\b/g, '').replace(/[,\-\/]\s*$/, '').replace(/^\s*[,\-\/]/, '').trim();
+    var heure = isDate(r[3]) ? Utilities.formatDate(r[3], tz, 'HH:mm')
+                             : String(disp[i][3]).trim();
     var terrain = String(r[4]).trim();// E
     var sA = r[7], sB = r[8];         // H, I
     var lastInn = r[10];              // K : Manches complètes (dernière manche jouée)
