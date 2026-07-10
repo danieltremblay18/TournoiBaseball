@@ -884,6 +884,26 @@ function createHelpSheet(ss) {
     'voit ainsi d\'un coup d\'œil quel critère a fait la différence à chaque rang.');
 
   addBlank();
+  addTitle('QUAND LES POSITIONS DE DEMI-FINALE (1-2-3-4) S\'AFFICHENT', COLOR_SECTION);
+  addText(
+    'Les positions de demi-finale — 1re, 2e, 3e place (les 1ers de pool, Étape C) et le ' +
+    'meilleur 2e (position 4, Étape B) — forment un classement ENTRE les pools. Il ne devient ' +
+    'fiable qu\'une fois TOUTES les parties de pool de la classe jouées : avant, le meilleur 2e ' +
+    'et l\'ordre des 1ers changent à chaque score entré.');
+  addText(
+    'Pour éviter d\'afficher un classement provisoire trompeur (surtout sur la page publique ' +
+    'partagée sur Facebook), ces éléments RESTENT MASQUÉS tant que la classe n\'est pas ' +
+    'terminée : la colonne « Avancement » des pools reste vide, et les sections « CLASSEMENT ' +
+    'DES 1ers » (Étape C), « MEILLEUR 2e » (Étape B) et le récapitulatif « DEMI-FINALES » sont ' +
+    'remplacés par un bandeau d\'attente indiquant la progression (parties jouées / total). ' +
+    'Le classement INTERNE de chaque pool (rang, 1er/2e, V-D, RD), lui, s\'affiche normalement ' +
+    'en direct.');
+  addText(
+    'Chaque classe est indépendante : la classe A révèle ses positions dès que ses 3 pools sont ' +
+    'terminés, même si la classe B n\'a pas fini. Tout apparaît automatiquement au dernier score ' +
+    'entré (si la mise à jour auto est activée) ; sinon lancer « Mettre à jour les classements ».');
+
+  addBlank();
   addTitle('FORCER LE 2e D\'UN POOL (Note 5 — forfaits)', COLOR_SECTION);
   addText(
     'Cas rare réservé à l\'admin. La Note 5 de l\'Art. 42.11 exclut les parties gagnées par ' +
@@ -1309,6 +1329,26 @@ function getMatchRows(classe) {
     });
   });
   return rows;
+}
+
+/**
+ * État d'avancement des parties de POOL d'une classe. Sert à ne révéler les
+ * positions de demi-finale (1-2-3-4, un classement INTER-pools) qu'une fois toutes
+ * les parties de pool de la classe jouées — avant cela, le meilleur 2e et l'ordre
+ * des 1ers sont provisoires et changent à chaque score entré.
+ *
+ * Réutilise getMatchRows : sa marque `played` (les deux scores saisis) est
+ * exactement le critère qui fait qu'une partie est comptée par le moteur
+ * (getGameResults) — donc « complet » ici = « toutes les parties comptent ».
+ *
+ * @param {string} classe  'A' ou 'B'
+ * @return {Object} { total, played, complete } — complete = total>0 && played===total
+ */
+function poolPlayCompletion(classe) {
+  var rows   = getMatchRows(classe);
+  var total  = rows.length;
+  var played = rows.filter(function (r) { return r.played; }).length;
+  return { total: total, played: played, complete: total > 0 && played === total };
 }
 
 /**
@@ -2108,12 +2148,20 @@ function computeStandingsModel(ss, classe) {
 
   function withPool(name) { return { team: name, pool: poolOf[name] || '' }; }
 
+  // Les positions de demi-finale (classement INTER-pools) ne sont fiables qu'une fois
+  // TOUTES les parties de pool de la classe jouées : avant cela on ne révèle aucun seed.
+  var completion = poolPlayCompletion(classe);
+  var reveal = completion.complete;
+
   // Rang FINAL (1-4) : seules les 4 équipes qualifiées en portent un. 1ers de pool
   // ordonnés par Étape C → 1/2/3 ; meilleur 2e (Étape B) → 4. Posé sur chaque ligne
   // de pool (s.seed) et utilisé par la colonne « Rang » + la carte « Meilleur 2e ».
+  // Neutralisé (null) tant que les pools ne sont pas terminés.
   var seedByTeam = {};
-  orderedFirsts.forEach(function (name, i) { seedByTeam[name] = i + 1; });
-  if (orderedSeconds[0]) { seedByTeam[orderedSeconds[0]] = 4; }
+  if (reveal) {
+    orderedFirsts.forEach(function (name, i) { seedByTeam[name] = i + 1; });
+    if (orderedSeconds[0]) { seedByTeam[orderedSeconds[0]] = 4; }
+  }
   pools.forEach(function (pc) {
     pc.standings.forEach(function (s) { s.seed = seedByTeam[s.team] || null; });
   });
@@ -2128,7 +2176,7 @@ function computeStandingsModel(ss, classe) {
       v: st.v || 0,
       d: st.d || 0,
       rd: (st.defInnFull > 0 && isFinite(st.raRatioFull)) ? st.raRatioFull : null,
-      seed: (i === 0) ? 4 : null
+      seed: (reveal && i === 0) ? 4 : null
     };
   });
 
@@ -2142,6 +2190,9 @@ function computeStandingsModel(ss, classe) {
   return {
     classe: classe,
     pools: pools,
+    poolsComplete: reveal,
+    poolPlayed: completion.played,
+    poolTotal:  completion.total,
     firsts:  orderedFirsts.map(withPool),
     seconds: secondsCard,
     semifinals: {
@@ -2231,31 +2282,45 @@ function buildStandingsSheet(ss, classe, games) {
   orderedFirsts.slice(0, 3).forEach(function (team, i) { seedByTeam[team] = i + 1; });
   if (orderedSeconds.length > 0) { seedByTeam[orderedSeconds[0]] = 4; }
 
+  // Les positions de demi-finale (classement INTER-pools : Sections 4/5, récap, et la
+  // colonne « Avancement ») ne sont fiables qu'une fois TOUTES les parties de pool de
+  // la classe jouées. Tant que ce n'est pas le cas, on n'affiche pas les seeds ni les
+  // sections inter-pools — seulement un bandeau d'attente. Les classements internes de
+  // chaque pool, eux, restent affichés en direct.
+  var completion = poolPlayCompletion(classe);
+  var reveal = completion.complete;
+
   // -------- SECTIONS 1-3 (écriture) : un classement par pool --------
   poolData.forEach(function (pd) {
     row = writePoolSection(sheet, row, classe, pd.pool, pd.standings, pd.poolGames,
-                           pd.markedInPool, pd.secondRep, pd.forcedPool, seedByTeam);
+                           pd.markedInPool, pd.secondRep, pd.forcedPool,
+                           reveal ? seedByTeam : {});
     row += 1;  // espace entre sections
   });
 
-  // -------- SECTION 4 : Étape C — classement des 1ers --------
-  row = writeAdvancementSection(
-    sheet, row, classe,
-    'SECTION 4 — CLASSEMENT DES 1ers (Positions 1-2-3) — Étape C',
-    orderedFirsts, games, poolStatsByTeam, firsts, 1, forcedC);
+  if (reveal) {
+    // -------- SECTION 4 : Étape C — classement des 1ers --------
+    row = writeAdvancementSection(
+      sheet, row, classe,
+      'SECTION 4 — CLASSEMENT DES 1ers (Positions 1-2-3) — Étape C',
+      orderedFirsts, games, poolStatsByTeam, firsts, 1, forcedC);
 
-  row += 1;
+    row += 1;
 
-  // -------- SECTION 5 : Étape B — meilleur 2e (position 4) --------
-  row = writeAdvancementSection(
-    sheet, row, classe,
-    'SECTION 5 — MEILLEUR 2e (Position 4) — Étape B',
-    orderedSeconds, games, poolStatsByTeam, seconds, 4, forcedB);
+    // -------- SECTION 5 : Étape B — meilleur 2e (position 4) --------
+    row = writeAdvancementSection(
+      sheet, row, classe,
+      'SECTION 5 — MEILLEUR 2e (Position 4) — Étape B',
+      orderedSeconds, games, poolStatsByTeam, seconds, 4, forcedB);
 
-  row += 1;
+    row += 1;
 
-  // -------- RÉCAPITULATIF DEMI-FINALES --------
-  writeSemifinalSummary(sheet, row, classe, orderedFirsts, orderedSeconds);
+    // -------- RÉCAPITULATIF DEMI-FINALES --------
+    writeSemifinalSummary(sheet, row, classe, orderedFirsts, orderedSeconds);
+  } else {
+    // Pools non terminés : bandeau d'attente à la place des positions de demi-finale.
+    writeSeedingPendingBanner(sheet, row, classe, completion);
+  }
 
   // Largeurs de colonnes. 1-13 = classement de gauche ; 14 = espace ; 15-23 =
   // bloc « bris d'égalité » (Équipe, V-D, PP, PC, MO, MD, RD, RO, Critère décisif) ;
@@ -2293,7 +2358,9 @@ var POOL_HEADER_NOTES = {
       '(Note 4).',
   12: 'AVANCEMENT — Numéro de demi-finale (1 à 4) UNIQUEMENT pour les 4 équipes qui s\'y ' +
       'qualifient réellement (les 3 gagnants de pool + le seul meilleur 2e retenu, Sections ' +
-      '4-5 ci-dessous) ; vide pour toutes les autres (2e non retenu, 3e, 4e de pool).',
+      '4-5 ci-dessous) ; vide pour toutes les autres (2e non retenu, 3e, 4e de pool). ' +
+      'Reste vide TANT QUE toutes les parties de pool de la classe ne sont pas jouées : ' +
+      'ce classement inter-pools est provisoire avant la fin des pools, donc masqué jusque-là.',
   13: 'FORCER 2e — Réservé à l\'admin. COCHER la case à côté d\'une équipe pour la désigner ' +
       'comme représentante de ce pool au « Meilleur 2e » (Étape B), à la place du 2e ' +
       'automatique ; DÉCOCHER pour revenir au 2e automatique. Utile quand une victoire par ' +
@@ -2306,7 +2373,9 @@ var POOL_HEADER_NOTES = {
 
 var ADV_HEADER_NOTES = {
   1:  'POSITION — Rang inter-pool. Étape C : positions 1-2-3 (les 1ers de pool). ' +
-      'Étape B : meilleur 2e = position 4.',
+      'Étape B : meilleur 2e = position 4. Ces sections n\'apparaissent qu\'une fois ' +
+      'TOUTES les parties de pool de la classe jouées (avant, le classement inter-pools ' +
+      'est provisoire) ; d\'ici là, un bandeau d\'attente les remplace.',
   3:  'POOL — Pool d\'origine de l\'équipe.',
   4:  'V — Victoires (sur TOUTES les parties de pool de l\'équipe).',
   5:  'D — Défaites (sur toutes les parties de pool).',
@@ -2920,6 +2989,32 @@ function writeSemifinalSummary(sheet, startRow, classe, orderedFirsts, orderedSe
     sheet.getRange(row, 2).setValue(ln[1]);
     row++;
   });
+  return row;
+}
+
+/**
+ * Bandeau affiché À LA PLACE des positions de demi-finale (Sections 4/5 + récap)
+ * tant que toutes les parties de pool de la classe ne sont pas jouées. Les positions
+ * 1-2-3-4 forment un classement inter-pools qui reste provisoire avant la fin des
+ * pools ; on n'affiche donc qu'un rappel de la progression.
+ *
+ * @param {Sheet}  sheet
+ * @param {number} startRow
+ * @param {string} classe
+ * @param {Object} completion  { total, played, complete } de poolPlayCompletion()
+ * @return {number} ligne suivante
+ */
+function writeSeedingPendingBanner(sheet, startRow, classe, completion) {
+  var row = startRow;
+  sheet.getRange(row, 1).setValue(
+    '⏳ Les positions de demi-finale (1-2-3-4) et la colonne « Avancement » ' +
+    's\'afficheront lorsque TOUTES les parties des pools de la classe ' + classe +
+    ' auront été jouées.  Parties jouées : ' + completion.played + ' / ' +
+    completion.total + '.');
+  sheet.getRange(row, 1, 1, 13).merge();
+  sheet.getRange(row, 1).setFontWeight('bold').setBackground(COLOR_SECTION)
+    .setHorizontalAlignment('center').setWrap(true);
+  row++;
   return row;
 }
 
@@ -4099,6 +4194,21 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     return card;
   }
 
+  // Bloc « Meilleur 2e » + « Demi-finales » — affiché SEULEMENT quand toutes les
+  // parties de pool de la classe sont jouées (positions inter-pools fiables). Avant
+  // cela, une note d'attente avec la progression (les tableaux de pool, eux, restent).
+  function appendSemifinalBlock(content, model){
+    if (model.poolsComplete){
+      content.appendChild(secondCard(model));
+      content.appendChild(semiCard(model));
+    } else {
+      content.appendChild(el('div','note',
+        '⏳ Les positions de demi-finale (1-2-3-4) s\'afficheront lorsque toutes les ' +
+        'parties des pools de la classe ' + model.classe + ' auront été jouées (' +
+        (model.poolPlayed || 0) + '/' + (model.poolTotal || 0) + ').'));
+    }
+  }
+
   function teamPts(name, pts){ return name + (pts === null || pts === undefined ? '' : ' ('+pts+')'); }
   function finLabel(t){ return !t ? '' : (t === 'Supplémentaires' ? 'Suppl.' : t); }
 
@@ -4161,20 +4271,20 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
         content.appendChild(el('div','note','Aucune donnée disponible pour cette classe.'));
       } else if (state.view === 'all'){
         model.pools.forEach(function(pc){ content.appendChild(poolCard(pc, full)); });
-        content.appendChild(secondCard(model));
-        content.appendChild(semiCard(model));
+        appendSemifinalBlock(content, model);
       } else {
         var pc = null;
         model.pools.forEach(function(x){ if (String(x.pool) === state.view) pc = x; });
         if (pc) content.appendChild(poolCard(pc, full));
         else content.appendChild(el('div','note','Pool introuvable.'));
-        content.appendChild(secondCard(model));
-        content.appendChild(semiCard(model));
+        appendSemifinalBlock(content, model);
       }
       foot.appendChild(el('div', null, full
         ? 'PP/PC = points pour/contre · MO/MD = manches off./déf. · RD = PC÷MD · RO = PP÷MO.'
         : 'PC = points contre · MD = manches défensives · RD = PC ÷ MD (plus bas = mieux).'));
-      foot.appendChild(el('div', null, 'Rang = classement final pour les demi-finales : 1-2-3 = 1ers de pool, 4 = meilleur 2e.'));
+      if (model.poolsComplete){
+        foot.appendChild(el('div', null, 'Rang = classement final pour les demi-finales : 1-2-3 = 1ers de pool, 4 = meilleur 2e.'));
+      }
     }
 
     var anyModel = DATA.A || DATA.B;
