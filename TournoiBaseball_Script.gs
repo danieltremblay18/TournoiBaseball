@@ -48,7 +48,7 @@ var SHEET_LEDGER      = 'Grand livre';
 // Numéro de version de l'application (le code lui-même). À incrémenter à la main
 // lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
 // public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
-var APP_VERSION = '1.0.5';
+var APP_VERSION = '1.1.0';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
