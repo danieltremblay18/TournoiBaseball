@@ -4215,7 +4215,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       content.appendChild(semiCard(model));
     } else {
       content.appendChild(el('div','note',
-        '⏳ Les positions de demi-finale (1-2-3-4) s\'afficheront lorsque toutes les ' +
+        '⏳ Les positions de demi-finale (1-2-3-4) s\\'afficheront lorsque toutes les ' +
         'parties des pools de la classe ' + model.classe + ' auront été jouées (' +
         (model.poolPlayed || 0) + '/' + (model.poolTotal || 0) + ').'));
     }
