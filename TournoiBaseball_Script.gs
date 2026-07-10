@@ -1310,6 +1310,8 @@ function getMatchRows(classe) {
     var terrain = String(r[4]).trim();// E
     var sA = r[7], sB = r[8];         // H, I
     var lastInn = r[10];              // K : Manches complètes (dernière manche jouée)
+    var prevuesRaw = parseInt(r[12], 10); // M : Manches prévues (longueur réglementaire)
+    var manchesPrevues = (isNaN(prevuesRaw) || prevuesRaw < 1) ? TOTAL_INNINGS : prevuesRaw;
     var type    = String(r[13]).trim(); // N : Type de fin
 
     var hasScore = (sA !== '' && sB !== '' && !isNaN(Number(sA)) && !isNaN(Number(sB)));
@@ -1333,6 +1335,7 @@ function getMatchRows(classe) {
       eq1: eq1, eq2: eq2,
       scoreA: scoreA, scoreB: scoreB,
       lastInn: (lastInn === '' || lastInn === null) ? null : lastInn,
+      manchesPrevues: manchesPrevues,
       type: hasScore ? (type || 'Normal') : '',
       played: hasScore
     });
@@ -4220,6 +4223,17 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 
   function teamPts(name, pts){ return name + (pts === null || pts === undefined ? '' : ' ('+pts+')'); }
   function finLabel(t){ return !t ? '' : (t === 'Supplémentaires' ? 'Suppl.' : t); }
+  // Manche affichée : n° de la dernière manche jouée ; pour une partie allée en
+  // supplémentaire, on ajoute entre parenthèses le nombre de manches supplémentaires
+  // (ex. « 8 (2) » = terminée en 8e, soit 2 manches au-delà des 6 réglementaires).
+  function mancheLabel(m){
+    if (m.lastInn === null || m.lastInn === undefined || m.lastInn === '') { return ''; }
+    if (m.type === 'Supplémentaires'){
+      var supp = Number(m.lastInn) - Number(m.manchesPrevues);
+      if (supp > 0){ return m.lastInn + ' (' + supp + ')'; }
+    }
+    return String(m.lastInn);
+  }
 
   function matchesView(){
     var matches = DATA.matches || [];
@@ -4232,7 +4246,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var wrap = el('div','mwrap');
     var table = el('table','mtable');
     var hr = el('tr');
-    ['#','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Suppl','Typ Fin'].forEach(function(h){
+    ['#','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Manche','Typ Fin'].forEach(function(h){
       hr.appendChild(el('th', null, h));
     });
     table.appendChild(hr);
@@ -4246,7 +4260,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       tr.appendChild(el('td','c', m.terrain || '—'));
       tr.appendChild(el('td', win1 ? 't win' : 't', teamPts(m.eq1, m.scoreA)));
       tr.appendChild(el('td', win2 ? 't win' : 't', teamPts(m.eq2, m.scoreB)));
-      tr.appendChild(el('td','c', m.lastInn === null || m.lastInn === undefined ? '' : m.lastInn));
+      tr.appendChild(el('td','c', mancheLabel(m)));
       tr.appendChild(el('td','c', finLabel(m.type)));
       table.appendChild(tr);
     });
@@ -4270,7 +4284,8 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       document.getElementById('subtitle').textContent = 'Résultats des parties — Classes A et B';
       content.appendChild(matchesView());
       foot.appendChild(el('div', null,
-        'Suppl = n° de la dernière manche jouée · Typ Fin = type de fin (Normal / Mercy / Forfait / Suppl.).'));
+        'Manche = n° de la dernière manche jouée ; entre parenthèses = manches supplémentaires (ex. « 8 (2) ») · ' +
+        'Typ Fin = type de fin (Normal / Mercy / Forfait / Suppl.).'));
     } else {
       var model = DATA[state.classe];
       document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
@@ -4298,7 +4313,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 
     var anyModel = DATA.A || DATA.B;
     foot.appendChild(el('div', null, anyModel ? ('Mis à jour : ' + (anyModel.updatedAt || '')) : ''));
-    foot.appendChild(el('div', null, 'Rafraîchissement automatique toutes les 60 s.'));
+    foot.appendChild(el('div', null, 'Rechargez la page pour voir les derniers résultats.'));
     foot.appendChild(el('div', null, DATA.version ? ('Version ' + DATA.version) : ''));
 
     document.querySelectorAll('#seg-mode button').forEach(function(b){
@@ -4330,23 +4345,21 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
 
   render();
 
-  // Panneau « Règles du tournoi » : superpose les règles sur toute la page et met
-  // en pause le rafraîchissement auto pendant la lecture (repris au retour).
-  var reloadTimer = setInterval(function(){ location.reload(); }, 60000);
+  // Panneau « Règles du tournoi » : superpose les règles sur toute la page.
+  // (La page ne se rafraîchit plus automatiquement : recharger manuellement pour
+  // voir les derniers résultats.)
   function openRules(){
     document.getElementById('main-view').style.display = 'none';
     // Masque le sous-titre (ex. « Classe B — Pool 2 ») : hors contexte sur la
     // page des règles, il pourrait porter à confusion.
     document.getElementById('subtitle').style.display = 'none';
     document.getElementById('rules').style.display = 'block';
-    clearInterval(reloadTimer);
     window.scrollTo(0, 0);
   }
   function closeRules(){
     document.getElementById('rules').style.display = 'none';
     document.getElementById('subtitle').style.display = '';
     document.getElementById('main-view').style.display = '';
-    reloadTimer = setInterval(function(){ location.reload(); }, 60000);
     window.scrollTo(0, 0);
   }
   document.getElementById('btn-rules').addEventListener('click', openRules);
