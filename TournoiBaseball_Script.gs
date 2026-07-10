@@ -1288,8 +1288,8 @@ function getGameResults(classe) {
  * toutes les parties générées (Éq.1 et Éq.2 présentes), jouées ou non.
  *
  * @param {string} classe  'A' ou 'B'
- * @return {Array} lignes { partie, classe, pool, terrain, eq1, eq2, scoreA, scoreB,
- *                          lastInn, type, played }
+ * @return {Array} lignes { partie, classe, pool, jour, heure, terrain, eq1, eq2,
+ *                          scoreA, scoreB, lastInn, type, played }
  */
 function getMatchRows(classe) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1299,14 +1299,17 @@ function getMatchRows(classe) {
   var last = sheet.getLastRow();
   if (last < 2) { return rows; }
 
-  var data = sheet.getRange(2, 1, last - 1, 15).getValues();   // colonnes A..O
-  data.forEach(function (r) {
+  var data = sheet.getRange(2, 1, last - 1, 15).getValues();          // colonnes A..O
+  var disp = sheet.getRange(2, 1, last - 1, 15).getDisplayValues();   // Jour/Heure : texte affiché
+  data.forEach(function (r, i) {
     var eq1 = String(r[5]).trim();    // F : Équipe 1
     var eq2 = String(r[6]).trim();    // G : Équipe 2
     if (eq1 === '' || eq2 === '') { return; }   // ligne non générée
 
     var pool    = parseInt(r[0], 10); // A
     var partie  = r[1];               // B : Partie #
+    var jour    = String(disp[i][2]).trim();  // C : Jour (texte affiché)
+    var heure   = String(disp[i][3]).trim();  // D : Heure (texte affiché)
     var terrain = String(r[4]).trim();// E
     var sA = r[7], sB = r[8];         // H, I
     var lastInn = r[10];              // K : Manches complètes (dernière manche jouée)
@@ -1331,6 +1334,8 @@ function getMatchRows(classe) {
       partie:  partie,
       classe:  classe,
       pool:    isNaN(pool) ? '' : pool,
+      jour:    jour,
+      heure:   heure,
       terrain: terrain,
       eq1: eq1, eq2: eq2,
       scoreA: scoreA, scoreB: scoreB,
@@ -4246,7 +4251,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var wrap = el('div','mwrap');
     var table = el('table','mtable');
     var hr = el('tr');
-    ['#','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Manche','Typ Fin'].forEach(function(h){
+    ['#','Date/Heure','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Manche','Typ Fin'].forEach(function(h){
       hr.appendChild(el('th', null, h));
     });
     table.appendChild(hr);
@@ -4254,7 +4259,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       var tr = el('tr', m.played ? '' : 'pending');
       var win1 = m.played && m.scoreA > m.scoreB;
       var win2 = m.played && m.scoreB > m.scoreA;
+      var dh = [m.jour, m.heure].filter(function(x){ return x; }).join(' ');
       tr.appendChild(el('td','c', m.partie));
+      tr.appendChild(el('td','c', dh || '—'));
       tr.appendChild(el('td','c', m.classe));
       tr.appendChild(el('td','c', m.pool));
       tr.appendChild(el('td','c', m.terrain || '—'));
