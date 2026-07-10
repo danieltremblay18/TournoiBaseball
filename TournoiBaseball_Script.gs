@@ -255,6 +255,11 @@ function handleResultEdit(e) {
 
   if (!recalc) { return; }
 
+  // Retour visuel immédiat au poste : la ligne est complète, le calcul suit. Affiché
+  // AVANT de prendre le verrou pour que le poste ne perçoive pas d'attente « morte ».
+  (e.source || SpreadsheetApp.getActiveSpreadsheet())
+    .toast('Calcul du classement ' + classe + ' en cours…', 'Tournoi Baseball', 3);
+
   // ---- Recalcul sous verrou de document ----
   // Acquisition défensive : si LockService est indisponible (ex. exécution en
   // mode restreint), lock reste null et on recalcule SANS verrou plutôt que de
@@ -287,7 +292,11 @@ function handleResultEdit(e) {
     }
 
     buildStandingsSheet(ss, classe, games);
-    buildLedgerSheet(ss);
+    // NB : le Grand livre (buildLedgerSheet) n'est PAS reconstruit en direct — c'est
+    // l'étape la plus lourde (relit les 2 classes + reformate cellule par cellule) et
+    // les registraires suivent la feuille Classements pendant la saisie, pas le Grand
+    // livre. Il reste à jour via le menu « 📒 Grand livre des matchs » et « Mettre à
+    // jour les classements » (calculateStandings). Cf. recalcStandingsOnly (idem).
     ss.toast('Classement ' + classe + ' mis à jour.', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
@@ -322,7 +331,7 @@ function recalcStandingsOnly(e, classe) {
     var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
     var games = getGameResults(classe);
     buildStandingsSheet(ss, classe, games);
-    buildLedgerSheet(ss);
+    // Grand livre non reconstruit en direct (cf. note dans handleResultEdit).
     ss.toast('Classement ' + classe + ' mis à jour (forçage).', 'Tournoi Baseball', 3);
   } finally {
     if (lock) { lock.releaseLock(); }
