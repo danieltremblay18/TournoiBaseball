@@ -4251,7 +4251,7 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
     var wrap = el('div','mwrap');
     var table = el('table','mtable');
     var hr = el('tr');
-    ['#','Date/Heure','CL','Pool','Terrain','Éq.1 (Pts)','Éq.2 (Pts)','Manche','Typ Fin'].forEach(function(h){
+    ['#','Date/Heure','CL','PO','TR','Éq.1 (Pts)','Éq.2 (Pts)','M','FIN'].forEach(function(h){
       hr.appendChild(el('th', null, h));
     });
     table.appendChild(hr);
@@ -4291,8 +4291,9 @@ var PUBLIC_HTML_TEMPLATE_ = `<!DOCTYPE html>
       document.getElementById('subtitle').textContent = 'Résultats des parties — Classes A et B';
       content.appendChild(matchesView());
       foot.appendChild(el('div', null,
-        'Manche = n° de la dernière manche jouée ; entre parenthèses = manches supplémentaires (ex. « 8 (2) ») · ' +
-        'Typ Fin = type de fin (Normal / Mercy / Forfait / Suppl.).'));
+        'CL = classe (A / B) · PO = pool · TR = terrain · ' +
+        'M = n° de la dernière manche jouée ; entre parenthèses = manches supplémentaires (ex. « 8 (2) ») · ' +
+        'FIN = type de fin (Normal / Mercy / Forfait / Suppl.).'));
     } else {
       var model = DATA[state.classe];
       document.getElementById('subtitle').textContent = 'Classe ' + state.classe +
