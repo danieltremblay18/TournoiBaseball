@@ -48,7 +48,7 @@ var SHEET_LEDGER      = 'Grand livre';
 // Numéro de version de l'application (le code lui-même). À incrémenter à la main
 // lors d'un changement notable ; s'affiche dans le pied de page de l'affichage
 // public (doGet) pour savoir quelle version est déployée sur le lien Facebook.
-var APP_VERSION = '1.1.0';
+var APP_VERSION = '1.1.1';
 
 var CLASSES = ['A', 'B'];
 var POOLS   = [1, 2, 3];
@@ -1256,6 +1256,7 @@ function getGameResults(classe) {
       terrain: terrain,
       local: local,
       visiteur: visiteur,
+      localIsEq1: (local === teamA),   // la locale est-elle l'Équipe 1 (col F) ? — pour l'affichage Q..T
       homeKnown: homeKnown,
       scoreLocal: scoreLocal,
       scoreVisiteur: scoreVisiteur,
@@ -1572,17 +1573,26 @@ function writeCalculatedResults(ss, classe, games) {
  * c'est le journal de la partie telle que jouée ; l'exclusion Note 4 ne touche que
  * les ratios des Classements, pas ce bloc.
  *
+ * IMPORTANT : les colonnes Q..T sont indexées par ÉQUIPE 1 / ÉQUIPE 2 (position
+ * dans l'horaire, col F/G), PAS par locale/visiteuse. L'objet `game` raisonne en
+ * locale/visiteuse ; on remappe donc via `localIsEq1` avant d'écrire, sinon Q/R et
+ * S/T seraient intervertis dès que l'équipe locale est l'Équipe 2.
+ *
  * @param {Sheet}  sheet     feuille Résultats A/B
  * @param {number} rowIndex  numéro de ligne (>= 2)
  * @param {Object} game      partie calculée, ou null/undefined pour effacer
  */
 function writeRowCalc(sheet, rowIndex, game) {
   if (game) {
-    sheet.getRange(rowIndex, 16).setValue(game.winner);                       // P : Gagnant
-    sheet.getRange(rowIndex, 17).setValue(formatFraction(game.offLocal));     // Q
-    sheet.getRange(rowIndex, 18).setValue(formatFraction(game.defLocal));     // R
-    sheet.getRange(rowIndex, 19).setValue(formatFraction(game.offVisiteur));  // S
-    sheet.getRange(rowIndex, 20).setValue(formatFraction(game.defVisiteur));  // T
+    var eq1Off = game.localIsEq1 ? game.offLocal    : game.offVisiteur;
+    var eq1Def = game.localIsEq1 ? game.defLocal    : game.defVisiteur;
+    var eq2Off = game.localIsEq1 ? game.offVisiteur : game.offLocal;
+    var eq2Def = game.localIsEq1 ? game.defVisiteur : game.defLocal;
+    sheet.getRange(rowIndex, 16).setValue(game.winner);            // P : Gagnant
+    sheet.getRange(rowIndex, 17).setValue(formatFraction(eq1Off)); // Q : MO Éq.1
+    sheet.getRange(rowIndex, 18).setValue(formatFraction(eq1Def)); // R : MD Éq.1
+    sheet.getRange(rowIndex, 19).setValue(formatFraction(eq2Off)); // S : MO Éq.2
+    sheet.getRange(rowIndex, 20).setValue(formatFraction(eq2Def)); // T : MD Éq.2
   } else {
     // Partie sans résultat : efface les calculs.
     sheet.getRange(rowIndex, 16, 1, 5).clearContent();
