@@ -347,6 +347,19 @@ function recalcStandingsOnly(e, classe) {
  * comprise (l'horaire collé est effacé). Item de menu "Initialiser les feuilles".
  */
 function createAllSheets() {
+  var ui = SpreadsheetApp.getUi();
+  // Double confirmation : c'est l'action la plus destructive (efface l'horaire
+  // ET tous les scores, sans annulation possible).
+  var resp1 = ui.alert('Initialiser les feuilles',
+    'Réinitialiser TOUTES les feuilles ? L\'horaire collé dans Configuration et ' +
+    'TOUS les scores seront effacés.',
+    ui.ButtonSet.YES_NO);
+  if (resp1 !== ui.Button.YES) { return; }
+  var resp2 = ui.alert('Initialiser les feuilles',
+    '⚠ Action irréversible : ceci EFFACE l\'horaire du tournoi ET tous les scores ' +
+    'déjà saisis. Vraiment continuer ?',
+    ui.ButtonSet.YES_NO);
+  if (resp2 !== ui.Button.YES) { return; }
   rebuildSheets(false);
 }
 
@@ -358,6 +371,12 @@ function createAllSheets() {
  * déjà saisis sont effacés ; relancez "Générer les matchs" ensuite.
  */
 function createAllSheetsKeepConfig() {
+  var ui = SpreadsheetApp.getUi();
+  var resp = ui.alert('Initialiser (conserver Configuration)',
+    'Reconstruire les feuilles Résultats A/B ? La Configuration (horaire) est ' +
+    'conservée, mais TOUS les scores déjà saisis seront effacés. Continuer ?',
+    ui.ButtonSet.YES_NO);
+  if (resp !== ui.Button.YES) { return; }
   rebuildSheets(true);
 }
 
@@ -1000,6 +1019,14 @@ function createHelpSheet(ss) {
  * saisis si possible (appariés par Pool + Partie #).
  */
 function generateGames() {
+  var ui = SpreadsheetApp.getUi();
+  var resp = ui.alert('Générer les matchs',
+    'Régénérer les matchs dans Résultats A/B à partir de la Configuration ? ' +
+    'Les scores déjà saisis sont normalement conservés (appariés par pool + # de ' +
+    'partie), mais les lignes seront réécrites. Continuer ?',
+    ui.ButtonSet.YES_NO);
+  if (resp !== ui.Button.YES) { return; }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var schedule = readScheduleRows(ss);   // toutes les parties valides, peu importe la classe
 
