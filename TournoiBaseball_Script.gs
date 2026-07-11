@@ -95,19 +95,19 @@ var GAME_MATRIX = [
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏆 Tournoi Baseball')
-    .addItem('Initialiser les feuilles', 'createAllSheets')
-    .addItem('Initialiser (conserver Configuration)', 'createAllSheetsKeepConfig')
-    .addItem('Générer les matchs', 'generateGames')
-    .addItem('Mettre à jour les classements', 'calculateStandings')
+    .addItem('Initialiser les feuilles…', 'createAllSheets')
+    .addItem('Initialiser (conserver Configuration)…', 'createAllSheetsKeepConfig')
+    .addItem('Générer les matchs…', 'generateGames')
+    .addItem('🔄 Mettre à jour les classements', 'calculateStandings')
     .addItem('📒 Grand livre des matchs', 'buildLedgerSheet')
     .addSeparator()
     .addItem('⚡ Activer la mise à jour auto', 'installTriggers')
-    .addItem('Effacer les résultats', 'clearResults')
+    .addItem('Effacer les résultats…', 'clearResults')
     .addSeparator()
     .addItem('📦 Exporter Résultats + Classements + Grand livre (ZIP de TSV)', 'exportSheetsToZip')
     .addItem('📱 Lien affichage public (Facebook)', 'showPublicUrl')
     .addSeparator()
-    .addItem('🧪 Simuler résultats de match', 'simulateMatchResults')
+    .addItem('🧪 Simuler résultats de match…', 'simulateMatchResults')
     .addToUi();
 }
 
